@@ -1,0 +1,34 @@
+name: Deploying
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.AWS_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.AWS_HOST }} >> ~/.ssh/known_hosts
+      - name: SSH into the remote instance, login, pull the latest changes, build and restart PM2
+        run: |
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.AWS_HOST }} <<EOF
+          # Commands to enter project directory
+          cd ad-promoter-api
+          # Pull latest changes
+          git pull
+          # Make Production Build
+          npm run build
+          # Kill Current PM2 Instances
+          sudo pm2 kill
+          # Spin up New PM2 Instance
+          sudo pm2 start dist/main.js --name AdPromoterApi
+          EOF

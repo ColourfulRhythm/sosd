@@ -1,0 +1,72 @@
+---
+title: "Accept Sub-Admin Invitation"
+preheader: "You're invited to the Team."
+bodyClass: bg-slate-50
+---
+
+<x-main>
+  <div class="bg-slate-50 sm:px-4 font-sans">
+    <table align="center">
+      <tr>
+        <td class="w-[552px] max-w-full">
+          <div class="my-12 sm:my-8 text-left">
+            <a href="https://ad-promoter.com">
+              <img src="images/maizzle.png" width="70" alt="AD-Promoter">
+            </a>
+          </div>
+
+          <table class="w-full">
+            <tr>
+              <td class="p-12 sm:px-6 text-base text-slate-700 bg-white rounded-xl shadow-sm">
+                <h1 class="text-center m-0 mb-6 text-base sm:leading-8 text-black font-bold">
+                  You're invited to the Team
+                </h1>
+
+                <p class="m-0 leading-6">
+                  <p class="text-base text-black font-bold">Hey @{{sub_admin_name}},</p>
+                  @{{admin_name}}
+    has invited you to join Ad-Promoter as a Sub-Admin. Accept ths invitation
+    within 7 days to begin collaborating together. We look forward to doing
+    great things with you!
+                </p>
+
+                <x-spacer height="24px" />
+
+                <div class="text-center">
+                <x-button class="rounded-lg" href=@{{url}}>
+                  Accept Invitation
+                </x-button>
+              </div>
+
+              <x-divider space-y="32px" class="bg-slate-200" />
+
+              <p class="m-0">
+                Or copy and paste the following url into your browser &rarr;
+                @{{url}}
+            </p>
+              </td>
+            </tr>
+            <tr role="separator">
+              <td class="leading-12">&zwj;</td>
+            </tr>
+            <tr>
+              <td class="text-center text-slate-600 text-xs px-6">
+                <p class="m-0 mb-4">
+                  Explore The World Of Seamless Online Promotion. On AD-Promoter, place ads that convert into click and unique visitors for your website
+                </p>
+
+                <p class="cursor-default">
+                  <a href="https://twitter.com" class="text-indigo-700 [text-decoration:none] hover:![text-decoration:underline]">Twitter</a>
+                  &bull;
+                  <a href="https://facebook.com" class="text-indigo-700 [text-decoration:none] hover:![text-decoration:underline]">Facebook</a>
+                  &bull;
+                  <a href="https://instagram.com" class="text-indigo-700 [text-decoration:none] hover:![text-decoration:underline]">Instagram</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>
+</x-main>

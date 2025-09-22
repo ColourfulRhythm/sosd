@@ -1,0 +1,50 @@
+{
+  "name": "ad-promoter",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prepare": "husky install"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1353.0",
+    "axios": "^1.5.1",
+    "bootstrap": "^5.2.3",
+    "chart.js": "^4.0.1",
+    "cookies-next": "^2.1.1",
+    "dotenv": "^16.0.3",
+    "framer-motion": "^10.11.2",
+    "js-cookie": "^3.0.1",
+    "next": "12.3.0",
+    "nookies": "^2.5.2",
+    "react": "18.2.0",
+    "react-chartjs-2": "^5.0.1",
+    "react-dom": "18.2.0",
+    "react-dragscroll": "^2.0.1",
+    "react-hot-toast": "^2.4.0",
+    "react-icons": "^4.6.0",
+    "react-indiana-drag-scroll": "^2.2.0",
+    "react-loader-spinner": "^5.3.4",
+    "react-phone-number-input": "^3.2.12",
+    "react-scroll-into-view": "^1.12.0",
+    "sharp": "^0.31.3",
+    "styled-components": "^5.3.5",
+    "yarn": "^1.22.19"
+  },
+  "devDependencies": {
+    "babel-plugin-inline-react-svg": "^2.0.1",
+    "eslint": "^8.23.1",
+    "eslint-config-next": "12.3.0",
+    "eslint-config-prettier": "^8.5.0",
+    "husky": "^8.0.1",
+    "lint-staged": "^13.0.3",
+    "prettier": "^2.7.1"
+  },
+  "lint-staged": {
+    "*.{js, jsx}": "eslint --cache --fix",
+    "*.{js, css, md}": "prettier --write"
+  }
+}

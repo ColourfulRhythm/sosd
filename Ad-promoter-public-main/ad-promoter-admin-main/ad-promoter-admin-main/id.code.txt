@@ -1,0 +1,93 @@
+import Token from '@/context/token';
+import { useEffect, useState } from 'react';
+import { useContext } from 'react';
+import { AuthContext } from '@/context/authContext';
+// import GetToken from '@/context/token';
+
+const GetToken = () => {
+  const [token, setToken] = useState(null);
+  useEffect(() => {
+    const userToken = JSON.parse(localStorage.getItem('user'));
+    setToken(userToken?.token);
+  }, [0]);
+  return token;
+};
+
+const token =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NDFhZjI0NDQwYmQwMWUzYTBmZTdlMjEiLCJwaG9uZU51bWJlciI6IjIzNDcwMTIzNDU2NzkiLCJpYXQiOjE2ODA1NTMzNzJ9.nbOqO5ExFwBwiZRnM9QlhFs81jI8buprwiRMQy1YcTs';
+
+export const getStaticPaths = async (context) => {
+  const response = await fetch(
+    'http://35.153.52.116/api/v1/reports/reportedAds',
+    {
+      method: 'Get',
+      mode: 'cors',
+      cache: 'no-cache',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  const reportData = await response.json();
+  console.log(reportData);
+
+  const ReportsDataPath =
+    reportData &&
+    reportData.data.data.map((report) => {
+      return {
+        params: {
+          id: report._id.toString(),
+        },
+      };
+    });
+
+  console.log(ReportsDataPath);
+  return {
+    paths: ReportsDataPath || [],
+    fallback: false,
+  };
+};
+
+export const getStaticProps = async (context) => {
+  const id = context.params.id;
+  const response = await fetch(
+    `http://35.153.52.116/api/v1/reports/adReports/${id}`,
+    {
+      method: 'Get',
+      mode: 'cors',
+      cache: 'no-cache',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const reportAdsDetails = await response.json();
+  console.log(reportAdsDetails);
+  return {
+    props: {
+      reportAdsDetails,
+    },
+  };
+};
+
+const ReportDetails = ({ reportAdsDetails }) => {
+  const data = GetToken();
+  console.log(data);
+
+  return (
+    <div className="report_details">
+      <h1>Product Name: {reportAdsDetails.data.adReports[0].productName}</h1>
+      <h1>type: {reportAdsDetails.data.adReports[0].type}</h1>
+      <h1>adStatus: {reportAdsDetails.data.adReports[0].adStatus}</h1>
+      <h1>conversions: {reportAdsDetails.data.adReports[0].conversions}</h1>
+      <h1>target: {reportAdsDetails.data.adReports[0].target}</h1>
+    </div>
+  );
+};
+
+export default ReportDetails;

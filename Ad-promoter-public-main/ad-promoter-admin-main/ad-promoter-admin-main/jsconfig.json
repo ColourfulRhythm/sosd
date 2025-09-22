@@ -1,0 +1,11 @@
+// https://dev.to/theodorusclarence/clean-up-your-imports-using-absolute-imports-alias-on-react-apps-next-js-cra-and-react-vite-2160
+{
+    "compilerOptions": {
+      "jsx": "preserve",
+      "baseUrl": ".",
+      "paths": {
+        "@/*": ["*"]
+      }
+    },
+    "exclude": ["node_modules", ".next"]
+  }

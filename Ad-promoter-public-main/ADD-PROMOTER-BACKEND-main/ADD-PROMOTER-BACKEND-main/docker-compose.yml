@@ -1,0 +1,47 @@
+version: '3.3'
+services:
+    redis: # Name of container
+        image: redis:6.2-alpine
+        command: ['redis-server', '--bind', '0.0.0.0', '--port', '6379']
+        container_name: redis
+        restart: unless-stopped
+        network_mode: nebula
+        expose:
+            - 6379
+        ports:
+            - 6379:6379
+    prod:
+        container_name: ad-promoter-ep-prod-container
+        image: ad-promoter-ep-prod-redisless-image:1.0.0
+        build:
+            context: .
+            dockerfile: ./Dockerfile
+            target: prod
+        command: npm run start:prod
+        ports:
+            - 80:80
+        network_mode: nebula
+        links:
+            - redis
+        volumes:
+            - .:/usr/src/app
+            - /usr/src/app/node_modules
+        restart: unless-stopped
+    # dev:
+    #   container_name: ad-promoter-dev-temp
+    #   image: ad-promoter-api-redis:1.1.0
+    #   build:
+    #     context: .
+    #     dockerfile: ./Dockerfile
+    #     target: dev
+    #   command: npm run start:dev
+    #   ports:
+    #     - 1000:1000
+    #     - 3000:3000
+    #   network_mode: bridge
+    #   links:
+    #     - redis
+    #   volumes:
+    #     - .:/usr/src/app
+    #     - /usr/src/app/node_modules
+    #   restart: unless-stopped
