@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { collection, addDoc, updateDoc, doc, getDocs, query, where, orderBy, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useSEO } from '../hooks/useSEO';
+import { SocialMediaIcons } from '../components/SocialMediaIcons';
+import { AccordionLink } from '../components/AccordionLink';
 
 interface LinkItem {
   id: string;
@@ -169,11 +171,40 @@ const LinkOrganizerBuilder: React.FC = () => {
   // Load existing link organizer data when editing
   const fetchLinkOrganizer = async (linkOrganizerId: string) => {
     try {
+      console.log('Fetching link organizer with ID:', linkOrganizerId);
       const docRef = doc(db, 'linkOrganizers', linkOrganizerId);
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
         const data = docSnap.data();
+        console.log('Raw data from Firestore:', data);
+        
+        // Safely process links array
+        const safeLinks = Array.isArray(data.links) ? data.links.map((link, index) => ({
+          id: link.id || `link_${Date.now()}_${index}`,
+          title: link.title || '',
+          url: link.url || '',
+          description: link.description || '',
+          icon: link.icon || '',
+          color: link.color || '#8B5CF6',
+          type: link.type || 'link',
+          isVisible: link.isVisible !== undefined ? link.isVisible : true,
+          order: typeof link.order === 'number' ? link.order : index,
+          clicks: typeof link.clicks === 'number' ? link.clicks : 0
+        })) : [];
+
+        // Safely process products array
+        const safeProducts = Array.isArray(data.products) ? data.products.map((product, index) => ({
+          id: product.id || `product_${Date.now()}_${index}`,
+          title: product.title || '',
+          description: product.description || '',
+          price: product.price || '',
+          image: product.image || '',
+          url: product.url || '',
+          isVisible: product.isVisible !== undefined ? product.isVisible : true,
+          order: typeof product.order === 'number' ? product.order : index,
+          clicks: typeof product.clicks === 'number' ? product.clicks : 0
+        })) : [];
         
         // Convert Firestore timestamps to Date objects
         const linkOrganizerData = {
@@ -181,9 +212,13 @@ const LinkOrganizerBuilder: React.FC = () => {
           id: linkOrganizerId,
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date(),
-          links: data.links || [],
-          products: data.products || []
+          links: safeLinks,
+          products: safeProducts
         } as LinkOrganizer;
+        
+        console.log('Processed link organizer data:', linkOrganizerData);
+        console.log('Links loaded:', safeLinks.length);
+        console.log('Products loaded:', safeProducts.length);
         
         setLinkOrganizer(linkOrganizerData);
         // Lock username if editing existing organizer
@@ -197,7 +232,8 @@ const LinkOrganizerBuilder: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching link organizer:', error);
-      alert('Error loading link organizer data');
+      console.error('Error details:', error);
+      alert(`Error loading link organizer data: ${error instanceof Error ? error.message : 'Unknown error'}`);
       navigate('/link-organizer-builder');
     }
   };
@@ -208,6 +244,56 @@ const LinkOrganizerBuilder: React.FC = () => {
       fetchLinkOrganizer(id);
     }
   }, [id, currentUser, navigate]);
+
+  // Auto-save functionality to prevent data loss
+  useEffect(() => {
+    if (linkOrganizer.id && currentUser) {
+      const autoSaveTimeout = setTimeout(() => {
+        console.log('Auto-saving link organizer...');
+        handleAutoSave();
+      }, 30000); // Auto-save every 30 seconds
+
+      return () => clearTimeout(autoSaveTimeout);
+    }
+  }, [linkOrganizer, currentUser]);
+
+  const handleAutoSave = async () => {
+    if (!currentUser?.id || !linkOrganizer.id) return;
+
+    try {
+      // Ensure links and products arrays are properly formatted
+      const safeLinks = Array.isArray(linkOrganizer.links) ? linkOrganizer.links.map(link => ({
+        ...link,
+        id: link.id || Date.now().toString(),
+        isVisible: link.isVisible !== undefined ? link.isVisible : true,
+        order: typeof link.order === 'number' ? link.order : 0,
+        clicks: typeof link.clicks === 'number' ? link.clicks : 0
+      })) : [];
+
+      const safeProducts = Array.isArray(linkOrganizer.products) ? linkOrganizer.products.map(product => ({
+        ...product,
+        id: product.id || Date.now().toString(),
+        isVisible: product.isVisible !== undefined ? product.isVisible : true,
+        order: typeof product.order === 'number' ? product.order : 0,
+        clicks: typeof product.clicks === 'number' ? product.clicks : 0
+      })) : [];
+
+      const organizerData = {
+        ...linkOrganizer,
+        userId: currentUser.id,
+        links: safeLinks,
+        products: safeProducts,
+        updatedAt: new Date(),
+        createdAt: linkOrganizer.createdAt instanceof Date ? linkOrganizer.createdAt : new Date()
+      };
+
+      await updateDoc(doc(db, 'linkOrganizers', linkOrganizer.id), organizerData);
+      console.log('Auto-saved successfully');
+    } catch (error) {
+      console.error('Auto-save failed:', error);
+      // Don't show alert for auto-save failures to avoid annoying the user
+    }
+  };
 
   const linkTypes = [
     { 
@@ -292,6 +378,7 @@ const LinkOrganizerBuilder: React.FC = () => {
       // Check file size (max 2MB for better quality)
       if (file.size > 2 * 1024 * 1024) {
         alert('Image file size must be less than 2MB. Please use a smaller image.');
+        setUploadingImage(false);
         return;
       }
       
@@ -302,19 +389,28 @@ const LinkOrganizerBuilder: React.FC = () => {
         if (result) {
           if (type === 'profile') {
             setLinkOrganizer(prev => ({ ...prev, profileImage: result }));
-            // Open crop modal for profile images
-            cropProfileImage(result);
+            // Ask user if they want to crop
+            if (window.confirm('Would you like to crop the image? Click OK to crop, or Cancel to use the original image.')) {
+              cropProfileImage(result);
+            } else {
+              setUploadingImage(false);
+            }
           } else {
             setLinkForm(prev => ({ ...prev, icon: result }));
+            setUploadingImage(false);
           }
         }
+      };
+      reader.onerror = () => {
+        console.error('Error reading file');
+        alert('Error reading image file. Please try again.');
+        setUploadingImage(false);
       };
       reader.readAsDataURL(file);
       
     } catch (error) {
       console.error('Error uploading image:', error);
       alert('Error uploading image. Please try again.');
-    } finally {
       setUploadingImage(false);
     }
   };
@@ -370,8 +466,23 @@ const LinkOrganizerBuilder: React.FC = () => {
       canvas.height = 200;
       
       if (ctx) {
+        // Calculate the crop area (center 200x200 square)
+        const scale = parseFloat(scaleSlider.value);
+        const imgWidth = img.naturalWidth * scale;
+        const imgHeight = img.naturalHeight * scale;
+        
+        // Calculate the source rectangle (center crop)
+        const sourceX = Math.max(0, (imgWidth - 200) / 2);
+        const sourceY = Math.max(0, (imgHeight - 200) / 2);
+        const sourceWidth = Math.min(200, imgWidth);
+        const sourceHeight = Math.min(200, imgHeight);
+        
         // Draw the cropped image
-        ctx.drawImage(img, 0, 0, 200, 200);
+        ctx.drawImage(
+          img, 
+          sourceX, sourceY, sourceWidth, sourceHeight,
+          0, 0, 200, 200
+        );
         const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
         
         // Update the profile image
@@ -452,13 +563,36 @@ const LinkOrganizerBuilder: React.FC = () => {
 
     setLoading(true);
     try {
+      // Ensure links and products arrays are properly formatted
+      const safeLinks = Array.isArray(linkOrganizer.links) ? linkOrganizer.links.map(link => ({
+        ...link,
+        id: link.id || Date.now().toString(),
+        isVisible: link.isVisible !== undefined ? link.isVisible : true,
+        order: typeof link.order === 'number' ? link.order : 0,
+        clicks: typeof link.clicks === 'number' ? link.clicks : 0
+      })) : [];
+
+      const safeProducts = Array.isArray(linkOrganizer.products) ? linkOrganizer.products.map(product => ({
+        ...product,
+        id: product.id || Date.now().toString(),
+        isVisible: product.isVisible !== undefined ? product.isVisible : true,
+        order: typeof product.order === 'number' ? product.order : 0,
+        clicks: typeof product.clicks === 'number' ? product.clicks : 0
+      })) : [];
+
       const organizerData = {
         ...linkOrganizer,
         userId: currentUser.id,
-        updatedAt: new Date()
+        links: safeLinks,
+        products: safeProducts,
+        updatedAt: new Date(),
+        // Ensure dates are properly serialized
+        createdAt: linkOrganizer.createdAt instanceof Date ? linkOrganizer.createdAt : new Date()
       };
 
       console.log('Saving link organizer data:', organizerData);
+      console.log('Links being saved:', safeLinks);
+      console.log('Products being saved:', safeProducts);
 
       if (linkOrganizer.id) {
         // Update existing
@@ -474,13 +608,15 @@ const LinkOrganizerBuilder: React.FC = () => {
       alert('Link organizer saved successfully!');
     } catch (error) {
       console.error('Error saving link organizer:', error);
-      alert('Error saving link organizer. Please try again.');
+      console.error('Error details:', error);
+      alert(`Error saving link organizer: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
     } finally {
       setLoading(false);
     }
   };
 
   const handleAddLink = () => {
+    console.log('handleAddLink called with form data:', linkForm);
     if (!linkForm.title || !linkForm.url) {
       alert('Please fill in title and URL');
       return;
@@ -500,15 +636,23 @@ const LinkOrganizerBuilder: React.FC = () => {
     };
 
     if (editingLink) {
-      setLinkOrganizer(prev => ({
-        ...prev,
-        links: prev.links.map(link => link.id === editingLink.id ? newLink : link)
-      }));
+      setLinkOrganizer(prev => {
+        const updatedLinks = prev.links.map(link => link.id === editingLink.id ? newLink : link);
+        console.log('Editing link - Updated links:', updatedLinks);
+        return {
+          ...prev,
+          links: updatedLinks
+        };
+      });
     } else {
-      setLinkOrganizer(prev => ({
-        ...prev,
-        links: [...prev.links, newLink]
-      }));
+      setLinkOrganizer(prev => {
+        const newLinks = [...prev.links, newLink];
+        console.log('Adding new link - All links:', newLinks);
+        return {
+          ...prev,
+          links: newLinks
+        };
+      });
     }
 
     setLinkForm({ title: '', url: '', description: '', icon: '', color: '#8B5CF6', type: 'link' });
@@ -584,163 +728,142 @@ const LinkOrganizerBuilder: React.FC = () => {
     }));
   };
 
-  const PreviewComponent = () => (
-    <div className="w-full max-w-sm mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden">
-      {/* Header */}
-      <div 
-        className="h-48 relative"
-        style={{
-          background: linkOrganizer.backgroundStyle?.type === 'gradient' 
-            ? `linear-gradient(135deg, ${linkOrganizer.backgroundStyle.primaryColor}, ${linkOrganizer.backgroundStyle.secondaryColor})`
-            : linkOrganizer.backgroundStyle?.primaryColor || '#8B5CF6'
-        }}
-      >
-        <div className="absolute inset-0 bg-black bg-opacity-10"></div>
-        <div className="relative p-6 h-full flex flex-col items-center justify-center text-white">
-          {linkOrganizer.profileImage && (
-            <img 
-              src={linkOrganizer.profileImage} 
-              alt="Profile" 
-              className="w-20 h-20 rounded-full mb-4 border-4 border-white border-opacity-30"
-            />
-          )}
-          <h1 className="text-2xl font-bold mb-2">{linkOrganizer.profileName}</h1>
-          <p className="text-center text-white text-opacity-90">{linkOrganizer.bio}</p>
-        </div>
-      </div>
+  const PreviewComponent = () => {
+    const visibleLinks = Array.isArray(linkOrganizer?.links) ? linkOrganizer.links.filter(link => link.isVisible) : [];
+    const visibleProducts = Array.isArray(linkOrganizer?.products) ? linkOrganizer.products.filter(product => product.isVisible) : [];
 
-      {/* Links */}
-      <div className="p-6 space-y-4">
-        {linkOrganizer.links.filter(link => link.isVisible).map((link, index) => (
-          <motion.div
-            key={link.id}
-            className="relative"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        {/* iPhone-style container with rounded corners and shadow */}
+        <div className="max-w-sm mx-auto bg-white min-h-screen relative overflow-hidden rounded-t-3xl shadow-2xl">
+          {/* Status bar area */}
+          <div className="h-6 bg-black rounded-t-3xl flex items-center justify-center">
+            <div className="w-16 h-1 bg-white rounded-full opacity-60"></div>
+          </div>
+
+          {/* Header with profile */}
+          <div 
+            className="relative overflow-hidden"
+            style={{
+              background: linkOrganizer.backgroundStyle?.type === 'gradient' 
+                ? `linear-gradient(135deg, ${linkOrganizer.backgroundStyle.primaryColor}, ${linkOrganizer.backgroundStyle.secondaryColor})`
+                : linkOrganizer.backgroundStyle?.primaryColor || '#8B5CF6'
+            }}
           >
-            {/* Street Sign Style Link */}
-            <motion.a
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full relative overflow-hidden cursor-pointer group"
-              style={{ 
-                backgroundColor: link.color || linkOrganizer.theme.primaryColor,
-                borderRadius: '8px'
-              }}
-            >
-              {/* Double Border Effect */}
-              <div 
-                className="absolute inset-0 border-4 border-white"
-                style={{ borderRadius: '8px' }}
-              />
-              <div 
-                className="absolute inset-1 border-2 border-white border-opacity-80"
-                style={{ borderRadius: '4px' }}
-              />
-              
-              {/* Content */}
-              <div className="relative p-4 text-center">
+            <div className="relative p-8 pb-12">
+              {/* Profile Section */}
+              <div className="flex flex-col items-center text-center">
+                {linkOrganizer.profileImage ? (
+                  <div className="relative mb-6">
+                    <img 
+                      src={linkOrganizer.profileImage} 
+                      alt="Profile" 
+                      className="w-28 h-28 rounded-full shadow-2xl object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-28 h-28 rounded-full bg-white bg-opacity-20 border-4 border-white border-opacity-30 flex items-center justify-center mb-6 shadow-2xl">
+                    <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                )}
+                
+                <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">
+                  {linkOrganizer.profileName}
+                </h1>
+                
+                {/* Bio with word limit */}
+                <p className="text-white text-opacity-90 text-sm leading-relaxed max-w-xs mb-6 line-clamp-3">
+                  {linkOrganizer.bio && linkOrganizer.bio.length > 120 
+                    ? `${linkOrganizer.bio.substring(0, 120)}...` 
+                    : linkOrganizer.bio}
+                </p>
+
+                {/* Social Links - Smaller and below description */}
+                {linkOrganizer.socialLinks && 
+                 typeof linkOrganizer.socialLinks === 'object' && 
+                 Object.values(linkOrganizer.socialLinks).some(link => link) && (
+                  <div className="mb-4">
+                    <SocialMediaIcons 
+                      socialLinks={linkOrganizer.socialLinks}
+                      size="sm"
+                      className="opacity-90"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="bg-white border-b border-gray-100">
+            <div className="flex">
+              <button className="flex-1 py-4 px-6 text-sm font-medium text-blue-600 relative">
                 <div className="flex items-center justify-center space-x-2">
-                  {link.icon && (
-                    <span className="text-white text-lg">
-                      {link.icon}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  <span>Links</span>
+                  {visibleLinks.length > 0 && (
+                    <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                      {visibleLinks.length}
                     </span>
                   )}
-                  <h3 className="text-white font-bold text-lg uppercase tracking-wide">
-                    {link.title}
-                  </h3>
-                  {/* Description Toggle Button - Positioned absolutely to not affect layout */}
-                  {link.description && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // Toggle description visibility
-                        const desc = document.getElementById(`desc-${link.id}`);
-                        if (desc) {
-                          desc.style.display = desc.style.display === 'none' ? 'block' : 'none';
-                        }
-                      }}
-                      className="absolute top-2 right-2 text-white text-opacity-80 hover:text-opacity-100 transition-opacity text-xs bg-white bg-opacity-20 rounded-full w-5 h-5 flex items-center justify-center"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
+              </button>
+              
+              <button className="flex-1 py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 relative">
+                <div className="flex items-center justify-center space-x-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  <span>Shop</span>
+                  {visibleProducts.length > 0 && (
+                    <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                      {visibleProducts.length}
+                    </span>
                   )}
                 </div>
-              </div>
-            </motion.a>
-            
-            {/* Collapsible Description */}
-            {link.description && (
-              <div 
-                id={`desc-${link.id}`}
-                className="mt-2 p-3 bg-gray-100 rounded-lg text-sm text-gray-700 hidden"
-                style={{ display: 'none' }}
-              >
-                {link.description}
-              </div>
-            )}
-          </motion.div>
-        ))}
-      </div>
+              </button>
+            </div>
+          </div>
 
-      {/* Social Links */}
-      {Object.values(linkOrganizer.socialLinks || {}).some(link => link) && (
-        <div className="px-6 pb-6">
-          <div className="flex justify-center space-x-4">
-            {linkOrganizer.socialLinks?.instagram && (
-              <a href={linkOrganizer.socialLinks.instagram} target="_blank" rel="noopener noreferrer">
-                <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                  </svg>
+          {/* Content Area */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              {visibleLinks.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No links yet</h3>
+                  <p className="text-gray-500 text-sm">Links will appear here when added</p>
                 </div>
-              </a>
-            )}
-            {linkOrganizer.socialLinks?.twitter && (
-              <a href={linkOrganizer.socialLinks.twitter} target="_blank" rel="noopener noreferrer">
-                <div className="w-10 h-10 bg-blue-400 rounded-full flex items-center justify-center text-white">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
-                  </svg>
+              ) : (
+                <div className="space-y-4">
+                  {visibleLinks
+                    .sort((a, b) => a.order - b.order)
+                    .map((link, index) => (
+                      <div key={link.id}>
+                        <AccordionLink
+                          link={link}
+                          theme={linkOrganizer.theme}
+                          className="w-full"
+                        />
+                      </div>
+                    ))}
                 </div>
-              </a>
-            )}
-            {linkOrganizer.socialLinks?.linkedin && (
-              <a href={linkOrganizer.socialLinks.linkedin} target="_blank" rel="noopener noreferrer">
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                  </svg>
-                </div>
-              </a>
-            )}
-            {linkOrganizer.socialLinks?.youtube && (
-              <a href={linkOrganizer.socialLinks.youtube} target="_blank" rel="noopener noreferrer">
-                <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center text-white">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                  </svg>
-                </div>
-              </a>
-            )}
-            {linkOrganizer.socialLinks?.tiktok && (
-              <a href={linkOrganizer.socialLinks.tiktok} target="_blank" rel="noopener noreferrer">
-                <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-.88-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
-                  </svg>
-                </div>
-              </a>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pt-4">
@@ -1017,20 +1140,28 @@ const LinkOrganizerBuilder: React.FC = () => {
                               type="file"
                               accept="image/*"
                               onChange={(e) => {
+                                console.log('File input changed:', e.target.files);
                                 const file = e.target.files?.[0];
-                                if (file) handleImageUpload(file, 'profile');
+                                if (file) {
+                                  console.log('File selected:', file.name, file.size, file.type);
+                                  handleImageUpload(file, 'profile');
+                                  // Reset the input so the same file can be selected again
+                                  e.target.value = '';
+                                } else {
+                                  console.log('No file selected');
+                                }
                               }}
                               className="hidden"
                               id="profile-upload"
                             />
                             <label
                               htmlFor="profile-upload"
-                              className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                              className="cursor-pointer inline-flex items-center px-4 py-2 border-2 border-dashed border-blue-300 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-400 transition-colors"
                             >
                               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                               </svg>
-                              {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                              {uploadingImage ? 'Uploading...' : 'Choose Image File'}
                             </label>
                           </div>
                         </div>

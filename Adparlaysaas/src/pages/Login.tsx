@@ -203,13 +203,15 @@ const Login: React.FC = () => {
       </div>
 
       {/* Right Side - Enhanced Form */}
-      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 lg:py-12 bg-gray-50">
-        <div className="max-w-md w-full space-y-8">
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 lg:py-12 bg-black relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900/50 via-transparent to-gray-800/50"></div>
+        <div className="max-w-md w-full space-y-8 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100"
+            className="bg-gray-900 rounded-2xl shadow-xl p-8 border border-gray-800"
           >
             {/* Header */}
             <div className="text-center mb-8">
@@ -228,7 +230,7 @@ const Login: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.7 }}
-                className="text-3xl font-bold text-gray-900 mb-2"
+                className="text-3xl font-bold text-white mb-2"
               >
                 Welcome back
               </motion.h2>
@@ -237,10 +239,10 @@ const Login: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.9 }}
-                className="text-gray-600"
+                className="text-gray-300"
               >
                 Sign in to your account or{' '}
-                <Link to="/register" className="font-semibold text-blue-600 hover:text-blue-500 transition-colors">
+                <Link to="/register" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
                   create a new account
                 </Link>
               </motion.p>
@@ -298,7 +300,7 @@ const Login: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 1.1 }}
                 >
-                  <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label htmlFor="email" className="block text-sm font-semibold text-gray-300 mb-2">
                     Email address
                   </label>
                   <div className="relative">
@@ -310,7 +312,7 @@ const Login: React.FC = () => {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-3.5 border border-gray-200 rounded-xl placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                      className="w-full px-4 py-3.5 border border-gray-600 rounded-xl placeholder-gray-400 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-800 focus:bg-gray-700"
                       placeholder="Enter your email"
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -326,7 +328,7 @@ const Login: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 1.3 }}
                 >
-                  <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label htmlFor="password" className="block text-sm font-semibold text-gray-300 mb-2">
                     Password
                   </label>
                   <div className="relative">
@@ -338,7 +340,7 @@ const Login: React.FC = () => {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3.5 border border-gray-200 rounded-xl placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                      className="w-full px-4 py-3.5 border border-gray-600 rounded-xl placeholder-gray-400 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-800 focus:bg-gray-700"
                       placeholder="Enter your password"
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -363,7 +365,7 @@ const Login: React.FC = () => {
                     type="checkbox"
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-colors"
                   />
-                  <label htmlFor="remember-me" className="ml-2 block text-sm font-medium text-gray-700">
+                  <label htmlFor="remember-me" className="ml-2 block text-sm font-medium text-gray-300">
                     Remember me
                   </label>
                 </div>
@@ -373,7 +375,7 @@ const Login: React.FC = () => {
                     type="button"
                     onClick={handlePasswordReset}
                     disabled={resetLoading}
-                    className="font-semibold text-blue-600 hover:text-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="font-semibold text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {resetLoading ? 'Sending...' : 'Forgot password?'}
                   </button>
@@ -413,11 +415,11 @@ const Login: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 1.9 }}
-                className="text-center pt-6 border-t border-gray-100"
+                className="text-center pt-6 border-t border-gray-700"
               >
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-300">
                   Don't have an account?{' '}
-                  <Link to="/register" className="font-semibold text-blue-600 hover:text-blue-500 transition-colors">
+                  <Link to="/register" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
                     Create one here
                   </Link>
                 </p>

@@ -61,6 +61,11 @@ const Dashboard: React.FC = () => {
     }
   }, [currentUser]);
 
+  // Debug template modal state
+  useEffect(() => {
+    console.log('showTemplateModal state changed:', showTemplateModal);
+  }, [showTemplateModal]);
+
   // Refresh forms when user changes - removed automatic refresh to prevent infinite loops
 
   // Manual refresh function
@@ -882,10 +887,16 @@ const Dashboard: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
                   onClick={() => {
+                    console.log('Create New Form button clicked');
+                    console.log('Current user:', currentUser);
+                    console.log('Forms length:', forms.length);
+                    console.log('Max forms:', currentUser?.maxForms);
+                    
                     if (currentUser?.subscription === 'free' && forms.length >= (currentUser?.maxForms || 3)) {
                       alert('You have reached your form limit. Please delete some forms or upgrade to Premium.');
                       return;
                     }
+                    console.log('Setting showTemplateModal to true');
                     setShowTemplateModal(true);
                   }}
                   className={`min-h-[44px] px-6 py-3 rounded-xl font-medium transition-all transform hover:scale-105 ${
@@ -908,12 +919,26 @@ const Dashboard: React.FC = () => {
                 >
                   + Link Organizer
                 </Link>
-                <button
-                  onClick={() => setShowPaymentModal(true)}
-                  className="min-h-[44px] px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all"
-                >
-                  Upgrade to Premium
-                </button>
+                {currentUser?.subscription === 'premium' ? (
+                  <div className="min-h-[44px] px-6 py-3 bg-green-100 text-green-800 rounded-xl font-medium flex items-center justify-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Premium Active
+                    {currentUser?.daysTillExpiry && currentUser.daysTillExpiry <= 30 && (
+                      <span className="ml-2 text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full">
+                        Expires in {currentUser.daysTillExpiry} days
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowPaymentModal(true)}
+                    className="min-h-[44px] px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all"
+                  >
+                    Upgrade to Premium
+                  </button>
+                )}
               </div>
             </div>
 

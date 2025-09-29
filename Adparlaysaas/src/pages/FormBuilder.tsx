@@ -110,8 +110,11 @@ const FormBuilder: React.FC = () => {
       if (integrationsDropdownRef.current && !integrationsDropdownRef.current.contains(event.target as Node)) {
         setShowIntegrationsDropdown(false);
       }
-      // Close mobile menu when clicking outside
-      setShowMobileMenu(false);
+      // Close mobile menu when clicking outside (but not on menu items)
+      const target = event.target as Element;
+      if (showMobileMenu && !target.closest('[data-mobile-menu]') && !target.closest('[data-mobile-menu-button]')) {
+        setShowMobileMenu(false);
+      }
     };
 
     if (showIntegrationsDropdown || showMobileMenu) {
@@ -1166,6 +1169,24 @@ const FormBuilder: React.FC = () => {
                   )}
                 </button>
 
+                {/* Publish Button */}
+                <button
+                  onClick={publishForm}
+                  disabled={saving || !form?.blocks?.length}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                    saving || !form?.blocks?.length
+                      ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                      : form?.status === 'published'
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                  <span>{form?.status === 'published' ? 'Published' : 'Publish'}</span>
+                </button>
+
                 {/* Secondary Actions */}
                 <button
                   onClick={() => setPreviewMode(!previewMode)}
@@ -1265,20 +1286,23 @@ const FormBuilder: React.FC = () => {
                 </div>
               </div>
 
-              {/* Mobile Hamburger Menu */}
+
+              {/* Mobile Publish Menu */}
               <div className="sm:hidden relative">
                 <button
                   onClick={() => setShowMobileMenu(!showMobileMenu)}
-                  className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                  data-mobile-menu-button
+                  className="flex items-center gap-2 px-3 py-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-md transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                   </svg>
+                  <span className="text-sm font-medium">Publish</span>
                 </button>
                 
                 {/* Mobile Actions Menu */}
                 {showMobileMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
+                  <div data-mobile-menu className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
                     <div className="py-2">
                       {/* Save */}
                       <button
@@ -1296,7 +1320,27 @@ const FormBuilder: React.FC = () => {
                         </svg>
                         <div>
                           <div className="font-medium text-gray-900">{saving ? 'Saving...' : 'Save'}</div>
-                          <div className="text-sm text-gray-500">Save your form</div>
+                          <div className="text-sm text-gray-500">Save form changes</div>
+                        </div>
+                      </button>
+
+                      {/* Publish */}
+                      <button
+                        onClick={() => {
+                          publishForm();
+                          setShowMobileMenu(false);
+                        }}
+                        disabled={saving || !form?.blocks?.length}
+                        className={`w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 ${
+                          saving || !form?.blocks?.length ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                        <div>
+                          <div className="font-medium text-gray-900">{form?.status === 'published' ? 'Published' : 'Publish'}</div>
+                          <div className="text-sm text-gray-500">Make form live</div>
                         </div>
                       </button>
 
@@ -1321,6 +1365,7 @@ const FormBuilder: React.FC = () => {
                       {/* Share */}
                       <button
                         onClick={() => {
+                          console.log('Share button clicked in mobile menu');
                           setShowShareModal(true);
                           setShowMobileMenu(false);
                         }}

@@ -205,13 +205,15 @@ const Register: React.FC = () => {
       </div>
 
       {/* Right Side - Enhanced Form */}
-      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 lg:py-12 bg-gray-50">
-        <div className="max-w-md w-full space-y-8">
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 lg:py-12 bg-black relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900/50 via-transparent to-gray-800/50"></div>
+        <div className="max-w-md w-full space-y-8 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100"
+            className="bg-gray-900 rounded-2xl shadow-xl p-8 border border-gray-800"
           >
             {/* Header */}
             <div className="text-center mb-8">
@@ -230,7 +232,7 @@ const Register: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.7 }}
-                className="text-3xl font-bold text-gray-900 mb-2"
+                className="text-3xl font-bold text-white mb-2"
               >
                 Create your account
               </motion.h2>
@@ -239,10 +241,10 @@ const Register: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.9 }}
-                className="text-gray-600"
+                className="text-gray-300"
               >
                 Join thousands of creators or{' '}
-                <Link to="/login" className="font-semibold text-emerald-600 hover:text-emerald-500 transition-colors">
+                <Link to="/login" className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
                   sign in to your existing account
                 </Link>
               </motion.p>
@@ -279,7 +281,7 @@ const Register: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 1.1 }}
                 >
-                  <label htmlFor="displayName" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label htmlFor="displayName" className="block text-sm font-semibold text-gray-300 mb-2">
                     Full Name
                   </label>
                   <div className="relative">
@@ -291,7 +293,7 @@ const Register: React.FC = () => {
                       required
                       value={formData.displayName}
                       onChange={handleChange}
-                      className="w-full px-4 py-3.5 border border-gray-200 rounded-xl placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                      className="w-full px-4 py-3.5 border border-gray-600 rounded-xl placeholder-gray-400 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-gray-800 focus:bg-gray-700"
                       placeholder="Enter your full name"
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -307,7 +309,7 @@ const Register: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 1.3 }}
                 >
-                  <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label htmlFor="email" className="block text-sm font-semibold text-gray-300 mb-2">
                     Email address
                   </label>
                   <div className="relative">
@@ -319,7 +321,7 @@ const Register: React.FC = () => {
                       required
                       value={formData.email}
                       onChange={handleChange}
-                      className="w-full px-4 py-3.5 border border-gray-200 rounded-xl placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                      className="w-full px-4 py-3.5 border border-gray-600 rounded-xl placeholder-gray-400 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-gray-800 focus:bg-gray-700"
                       placeholder="Enter your email"
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -335,7 +337,7 @@ const Register: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 1.5 }}
                 >
-                  <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label htmlFor="password" className="block text-sm font-semibold text-gray-300 mb-2">
                     Password
                   </label>
                   <div className="relative">
@@ -347,7 +349,7 @@ const Register: React.FC = () => {
                       required
                       value={formData.password}
                       onChange={handleChange}
-                      className="w-full px-4 py-3.5 border border-gray-200 rounded-xl placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                      className="w-full px-4 py-3.5 border border-gray-600 rounded-xl placeholder-gray-400 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-gray-800 focus:bg-gray-700"
                       placeholder="Create a password"
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -363,7 +365,7 @@ const Register: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 1.7 }}
                 >
-                  <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-300 mb-2">
                     Confirm Password
                   </label>
                   <div className="relative">
@@ -375,7 +377,7 @@ const Register: React.FC = () => {
                       required
                       value={formData.confirmPassword}
                       onChange={handleChange}
-                      className="w-full px-4 py-3.5 border border-gray-200 rounded-xl placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                      className="w-full px-4 py-3.5 border border-gray-600 rounded-xl placeholder-gray-400 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-gray-800 focus:bg-gray-700"
                       placeholder="Confirm your password"
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -401,13 +403,13 @@ const Register: React.FC = () => {
                   onChange={handleChange}
                   className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded mt-1 transition-colors"
                 />
-                <label htmlFor="acceptTerms" className="ml-3 block text-sm font-medium text-gray-700">
+                <label htmlFor="acceptTerms" className="ml-3 block text-sm font-medium text-gray-300">
                   I agree to the{' '}
-                  <Link to="/terms" className="font-semibold text-emerald-600 hover:text-emerald-500 transition-colors">
+                  <Link to="/terms" className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
                     Terms and Conditions
                   </Link>{' '}
                   and{' '}
-                  <Link to="/privacy" className="font-semibold text-emerald-600 hover:text-emerald-500 transition-colors">
+                  <Link to="/privacy" className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
                     Privacy Policy
                   </Link>
                 </label>
@@ -446,11 +448,11 @@ const Register: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 2.3 }}
-                className="text-center pt-6 border-t border-gray-100"
+                className="text-center pt-6 border-t border-gray-700"
               >
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-300">
                   Already have an account?{' '}
-                  <Link to="/login" className="font-semibold text-emerald-600 hover:text-emerald-500 transition-colors">
+                  <Link to="/login" className="font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
                     Sign in here
                   </Link>
                 </p>

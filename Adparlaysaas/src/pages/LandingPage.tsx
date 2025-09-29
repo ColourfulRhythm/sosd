@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { BackgroundShader, ParallaxShader, FeatureBoxShader, IconShader, TextShader } from '../components/shaders';
 
 const LandingPage: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -98,6 +99,9 @@ const LandingPage: React.FC = () => {
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
         
+        {/* Shader Background - Ether for dramatic effect */}
+        <BackgroundShader shaderId={2} opacity={0.15} className="fixed inset-0" />
+        
         <div className="max-w-7xl mx-auto text-center relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -131,25 +135,20 @@ const LandingPage: React.FC = () => {
             </motion.p>
             
             <motion.div 
-              className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6"
+              className="flex justify-center"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.6 }}
             >
               <Link
                 to="/register"
-                className="group px-12 py-6 bg-white text-black rounded-2xl font-bold text-xl hover:bg-gray-200 transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl"
+                className="group inline-flex items-center space-x-2 px-12 py-6 bg-white text-black rounded-2xl font-bold text-xl hover:bg-gray-200 transition-all duration-300 transform hover:scale-105 shadow-2xl hover:shadow-3xl"
               >
-                <span className="flex items-center space-x-2">
-                  <span>Try for free</span>
-                  <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </span>
+                <span>Try for free</span>
+                <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
               </Link>
-              <button className="px-12 py-6 border-2 border-gray-600 text-gray-300 rounded-2xl font-bold text-xl hover:border-white hover:text-white transition-all duration-300 transform hover:scale-105">
-                Request demo
-              </button>
             </motion.div>
           </motion.div>
         </div>
@@ -236,11 +235,19 @@ const LandingPage: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: index * 0.1 }}
                 viewport={{ once: true }}
-                className="group bg-gray-900 rounded-3xl p-10 hover:shadow-2xl transition-all duration-500 border border-gray-800 hover:border-gray-600 hover:-translate-y-2"
+                className="group bg-gray-900 rounded-3xl p-10 hover:shadow-2xl transition-all duration-500 border border-gray-800 hover:border-gray-600 hover:-translate-y-2 relative overflow-hidden"
               >
-                <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-300">
-                  {feature.icon}
-                </div>
+                <IconShader
+                  shaderId={4} // Wavy Lines for all icons
+                  size={64}
+                  isHovered={false}
+                  isInView={true}
+                  className="w-16 h-16 mb-8"
+                >
+                  <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    {feature.icon}
+                  </div>
+                </IconShader>
                 <h3 className="text-2xl font-bold text-white mb-4 group-hover:text-gray-300 transition-colors duration-300">{feature.title}</h3>
                 <p className="text-gray-400 text-lg leading-relaxed">{feature.description}</p>
               </motion.div>
@@ -253,6 +260,9 @@ const LandingPage: React.FC = () => {
       <section className="py-32 px-4 sm:px-6 lg:px-8 bg-black relative overflow-hidden">
         {/* Background Elements */}
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-gray-900/30 via-transparent to-gray-800/30"></div>
+        
+        {/* Background Shader - Flowing Waves for subtle movement */}
+        <BackgroundShader shaderId={1} opacity={0.1} />
         
         <div className="max-w-7xl mx-auto relative z-10">
           <motion.div 
@@ -313,6 +323,10 @@ const LandingPage: React.FC = () => {
       <section id="pricing" className="py-32 px-4 sm:px-6 lg:px-8 bg-black relative overflow-hidden">
         {/* Background Elements */}
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-gray-900/20 via-transparent to-gray-800/20"></div>
+        
+        {/* Parallax Shaders for pricing cards */}
+        <ParallaxShader shaderId={2} size={200} intensity={0.2} className="top-10 left-1/3" />
+        <ParallaxShader shaderId={4} size={180} intensity={0.3} className="bottom-10 right-1/3" />
         
         <div className="max-w-7xl mx-auto relative z-10">
           <motion.div 
@@ -458,6 +472,7 @@ const LandingPage: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-gray-900/90 to-gray-800/90"></div>
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/5 via-transparent to-white/2"></div>
         
+        
         <div className="max-w-6xl mx-auto text-center relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -466,7 +481,7 @@ const LandingPage: React.FC = () => {
             viewport={{ once: true }}
           >
             <h2 className="text-5xl md:text-7xl font-black text-white mb-8 leading-tight">
-            Ready to Start Capturing Leads?
+            Ready to Start Capturing <TextShader shaderId={4} triggerWord="Leads">Leads</TextShader>?
           </h2>
             <p className="text-xl md:text-2xl text-gray-300 mb-16 max-w-4xl mx-auto leading-relaxed font-medium">
             Join thousands of businesses already using AdParlay to grow their customer base.
