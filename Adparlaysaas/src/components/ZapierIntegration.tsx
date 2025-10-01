@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ExternalLink, CheckCircle, AlertCircle, Settings, Plus, Zap, Link, Copy } from 'lucide-react';
 import { zapierService } from '../services/zapierService';
+import toast from 'react-hot-toast';
 
 interface ZapierIntegrationProps {
   formId: string;
@@ -123,8 +124,7 @@ const ZapierIntegration: React.FC<ZapierIntegrationProps> = ({
 
   const copyWebhookUrl = (url: string) => {
     navigator.clipboard.writeText(url);
-    setSuccess('Webhook URL copied to clipboard!');
-    setTimeout(() => setSuccess(null), 2000);
+    toast.success('Webhook URL copied to clipboard!');
   };
 
   const popularIntegrations = zapierService.getPopularIntegrations();

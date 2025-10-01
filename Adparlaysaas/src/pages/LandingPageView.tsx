@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { getBaseUrl } from '../utils/getBaseUrl';
 
 interface LandingPage {
   id: string;
@@ -130,6 +131,11 @@ const LandingPageView: React.FC = () => {
         
         if (docSnap.exists()) {
           const data = docSnap.data();
+          console.log('LandingPageView - Raw data from Firestore:', {
+            whatsappNumber: data.whatsappNumber,
+            whatsappMessage: data.whatsappMessage,
+            allData: data
+          });
           const landingPageData: LandingPage = {
             id: docSnap.id,
             title: data.title || '',
@@ -246,7 +252,7 @@ const LandingPageView: React.FC = () => {
       updateMetaTag('og:site_name', 'Adparlay');
       
       // Use landing page media or default preview image
-      const previewImage = landingPage.mediaUrl || `${window.location.origin}/default-preview.svg`;
+      const previewImage = landingPage.mediaUrl || `${getBaseUrl()}/default-preview.svg`;
       updateMetaTag('og:image', previewImage);
       
       // Twitter tags
@@ -290,6 +296,14 @@ const LandingPageView: React.FC = () => {
   const whatsappLink = landingPage.whatsappNumber ? 
     `https://wa.me/${landingPage.whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(landingPage.whatsappMessage)}` : 
     '#';
+
+  // Debug logging
+  console.log('LandingPageView - WhatsApp Debug:', {
+    whatsappNumber: landingPage.whatsappNumber,
+    whatsappMessage: landingPage.whatsappMessage,
+    whatsappLink: whatsappLink,
+    hasWhatsappNumber: !!landingPage.whatsappNumber
+  });
 
   return (
     <div className="min-h-screen" style={{ fontFamily: landingPage.fontFamily }}>
@@ -449,7 +463,7 @@ const LandingPageView: React.FC = () => {
                    {landingPage.showForm && landingPage.formUrl ? (
                      <div className="max-w-2xl mx-auto">
                        <iframe 
-                         src={`${window.location.origin}/form/${landingPage.formUrl}`}
+                         src={`${getBaseUrl()}/form/${landingPage.formUrl}`}
                          style={{ width: '100%', height: '600px', border: 'none', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                          title="Embedded Form"
                        />

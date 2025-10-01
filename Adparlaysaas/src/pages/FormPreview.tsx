@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, getDoc, addDoc, collection, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { getBaseUrl } from '../utils/getBaseUrl';
 import { motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
 
@@ -88,7 +89,35 @@ const FormPreview: React.FC = () => {
   const [formData, setFormData] = useState<{ [key: string]: any }>({});
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
+  const [isVideoMuted, setIsVideoMuted] = useState(true);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Video control functions
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isVideoMuted;
+      setIsVideoMuted(!isVideoMuted);
+    }
+  };
+
+  const togglePlayPause = () => {
+    if (videoRef.current) {
+      if (isVideoPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsVideoPlaying(!isVideoPlaying);
+    }
+  };
+
+  const handleVideoLoad = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = isVideoMuted;
+    }
+  };
 
   // Function to convert YouTube URLs to embed URLs
   const getYouTubeEmbedUrl = (url: string): string => {
@@ -155,7 +184,7 @@ const FormPreview: React.FC = () => {
       updateMetaTag('og:site_name', 'Adparlay');
       
       // Use form media or default preview image
-      const previewImage = form.media?.url || `${window.location.origin}/default-preview.svg`;
+      const previewImage = form.media?.url || `${getBaseUrl()}/default-preview.svg`;
       updateMetaTag('og:image', previewImage);
       
       // Twitter tags
@@ -816,7 +845,7 @@ const FormPreview: React.FC = () => {
             <div className="border-t border-gray-200 pt-6">
               <p className="text-gray-700 mb-4">Want to create your own beautiful forms?</p>
               <a 
-                href="https://www.adparlay.com/" 
+                href={getBaseUrl()} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-105 shadow-lg"
@@ -872,14 +901,57 @@ const FormPreview: React.FC = () => {
                       allowFullScreen
                     />
                   ) : (
-                    <motion.video 
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ duration: 0.8, delay: 0.2 }}
-                      src={form.media.url} 
-                      controls 
-                      className="w-full h-full object-cover"
-                    />
+                    <div className="relative w-full h-full">
+                      <motion.video 
+                        ref={videoRef}
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                        src={form.media.url} 
+                        className="w-full h-full object-cover"
+                        muted={isVideoMuted}
+                        autoPlay
+                        loop
+                        playsInline
+                        onLoadedData={handleVideoLoad}
+                        onPlay={() => setIsVideoPlaying(true)}
+                        onPause={() => setIsVideoPlaying(false)}
+                      />
+                      {/* Custom Video Controls */}
+                      <div className="absolute bottom-4 right-4 flex gap-2">
+                        <button
+                          onClick={toggleMute}
+                          className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-2 rounded-full transition-all duration-200"
+                          title={isVideoMuted ? 'Unmute' : 'Mute'}
+                        >
+                          {isVideoMuted ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            </svg>
+                          )}
+                        </button>
+                        <button
+                          onClick={togglePlayPause}
+                          className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-2 rounded-full transition-all duration-200"
+                          title={isVideoPlaying ? 'Pause' : 'Play'}
+                        >
+                          {isVideoPlaying ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </>
               )}

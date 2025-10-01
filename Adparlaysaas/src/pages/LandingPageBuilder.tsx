@@ -7,6 +7,8 @@ import { db } from '../firebase';
 import OptimizedVideo from '../components/OptimizedVideo';
 import { createOptimizedScrollHandler, createOptimizedTouchHandler } from '../utils/performanceUtils';
 import { useSEO } from '../hooks/useSEO';
+import { getBaseUrl } from '../utils/getBaseUrl';
+import toast from 'react-hot-toast';
 
 interface LandingPage {
   id?: string;
@@ -386,12 +388,12 @@ const LandingPageBuilder: React.FC = () => {
     <meta property="og:description" content="${debouncedLandingPage.tagline}">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Adparlay">
-    <meta property="og:image" content="${debouncedLandingPage.mediaUrl || window.location.origin + '/default-preview.svg'}">
+    <meta property="og:image" content="${debouncedLandingPage.mediaUrl || getBaseUrl() + '/default-preview.svg'}">
     
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="${debouncedLandingPage.title}">
     <meta name="twitter:description" content="${debouncedLandingPage.tagline}">
-    <meta name="twitter:image" content="${debouncedLandingPage.mediaUrl || window.location.origin + '/default-preview.svg'}">
+    <meta name="twitter:image" content="${debouncedLandingPage.mediaUrl || getBaseUrl() + '/default-preview.svg'}">
     
     <meta name="description" content="${debouncedLandingPage.tagline}">
     
@@ -926,7 +928,7 @@ const LandingPageBuilder: React.FC = () => {
                 
                 ${debouncedLandingPage.showForm && debouncedLandingPage.formUrl ? `
                     <iframe 
-                        src="${window.location.origin}/form/${debouncedLandingPage.formUrl}" 
+                        src="${getBaseUrl()}/form/${debouncedLandingPage.formUrl}" 
                         style="width: 100%; height: 600px; border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"
                         title="Embedded Form"
                     ></iframe>
@@ -1036,14 +1038,14 @@ const LandingPageBuilder: React.FC = () => {
               <div className="flex items-center space-x-2 mb-3">
                 <input
                   type="text"
-                  value={`${window.location.origin}/landing/${landingPage.id}`}
+                  value={`${getBaseUrl()}/landing/${landingPage.id}`}
                   readOnly
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm font-mono"
                 />
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/landing/${landingPage.id}`);
-                    alert('Link copied to clipboard!');
+                    navigator.clipboard.writeText(`${getBaseUrl()}/landing/${landingPage.id}`);
+                    toast.success('Link copied to clipboard!');
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                 >

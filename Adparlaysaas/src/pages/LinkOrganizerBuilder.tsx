@@ -5,8 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { collection, addDoc, updateDoc, doc, getDocs, query, where, orderBy, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useSEO } from '../hooks/useSEO';
+import { getBaseUrl } from '../utils/getBaseUrl';
 import { SocialMediaIcons } from '../components/SocialMediaIcons';
 import { AccordionLink } from '../components/AccordionLink';
+import toast from 'react-hot-toast';
 
 interface LinkItem {
   id: string;
@@ -898,10 +900,10 @@ const LinkOrganizerBuilder: React.FC = () => {
                   onClick={() => {
                     // Use username-based URL if available, otherwise fall back to ID-based
                     const linkUrl = linkOrganizer.username 
-                      ? `https://www.adparlay.com/${linkOrganizer.username}`
-                      : `https://www.adparlay.com/link/${linkOrganizer.id}`;
+                      ? `${getBaseUrl()}/${linkOrganizer.username}`
+                      : `${getBaseUrl()}/link/${linkOrganizer.id}`;
                     navigator.clipboard.writeText(linkUrl);
-                    alert('Link copied to clipboard!');
+                    toast.success('Link copied to clipboard!');
                   }}
                   className="px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                 >
@@ -994,7 +996,7 @@ const LinkOrganizerBuilder: React.FC = () => {
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
                         <div className="flex items-center space-x-2">
-                          <span className="text-gray-500">adparlay.com/</span>
+                          <span className="text-gray-500">{getBaseUrl().replace('https://', '')}/</span>
                           <div className="flex-1 relative">
                             <input
                               type="text"
@@ -1096,7 +1098,7 @@ const LinkOrganizerBuilder: React.FC = () => {
                           <p className="text-xs text-red-600 mt-1">❌ Username can only contain letters, numbers, underscores, and hyphens.</p>
                         )}
                         {usernameLocked && (
-                          <p className="text-xs text-green-600 mt-1">🔒 Username locked. Your link: adparlay.com/{linkOrganizer.username}</p>
+                          <p className="text-xs text-green-600 mt-1">🔒 Username locked. Your link: {getBaseUrl().replace('https://', '')}/{linkOrganizer.username}</p>
                         )}
                         {!usernameStatus && !usernameLocked && (
                           <p className="text-xs text-gray-500 mt-1">Type a username to check availability</p>

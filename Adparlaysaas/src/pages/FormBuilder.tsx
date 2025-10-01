@@ -8,6 +8,8 @@ import GoogleSheetsIntegration from '../components/GoogleSheetsIntegration';
 import CRMIntegration from '../components/CRMIntegration';
 import ZapierIntegration from '../components/ZapierIntegration';
 import { useSEO } from '../hooks/useSEO';
+import { getShareUrl } from '../utils/getBaseUrl';
+import toast from 'react-hot-toast';
 
 interface FormMedia {
   type: 'image' | 'video';
@@ -205,7 +207,7 @@ const FormBuilder: React.FC = () => {
         submissions: form.submissions || 0,
         createdAt: form.createdAt || new Date(),
         updatedAt: new Date(),
-        shareUrl: form.shareUrl || ''
+        shareUrl: getShareUrl(`/form/${form.id || `form-${Date.now()}`}`)
       };
       
       if (form.id && form.id !== '') {
@@ -525,7 +527,7 @@ const FormBuilder: React.FC = () => {
         submissions: form.submissions || 0,
         createdAt: form.createdAt || new Date(),
         updatedAt: new Date(),
-        shareUrl: form.shareUrl || ''
+        shareUrl: getShareUrl(`/form/${form.id || `form-${Date.now()}`}`)
       };
       
       console.log('Clean form data prepared:', cleanFormData);
@@ -558,14 +560,14 @@ const FormBuilder: React.FC = () => {
       console.log('Form saved successfully at:', new Date().toISOString());
       
       // Show success message
-      alert('Form saved successfully!');
+      toast.success('Form saved successfully!');
       
     } catch (error) {
       console.error('Error saving form:', error);
       console.error('Form data that failed to save:', form);
       console.error('Media data that failed:', form?.media);
       console.error('Clean form data that failed:', cleanFormData);
-      alert(`Error saving form: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+      toast.error(`Error saving form: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
     } finally {
       setSaving(false);
     }
@@ -636,7 +638,7 @@ const FormBuilder: React.FC = () => {
         submissions: form.submissions || 0,
         createdAt: form.createdAt || new Date(),
         updatedAt: new Date(),
-        shareUrl: form.shareUrl || ''
+        shareUrl: getShareUrl(`/form/${form.id || `form-${Date.now()}`}`)
       };
       
       console.log('Clean form data for unpublishing:', cleanFormData);
@@ -724,7 +726,7 @@ const FormBuilder: React.FC = () => {
         await updateDoc(doc(db, 'forms', form.id), cleanFormData);
         setForm(prev => prev ? { ...prev, status: 'published', shareUrl: generateShareUrl() } : null);
         console.log('Form published successfully');
-        alert('Form published! It is now accessible to the public.');
+        toast.success('Form published! It is now accessible to the public.');
       } else {
         console.log('Creating and publishing new form...');
         const newFormRef = doc(collection(db, 'forms'));
@@ -741,12 +743,12 @@ const FormBuilder: React.FC = () => {
         
         // Navigate to the new form
         navigate(`/builder/${newFormRef.id}`);
-        alert('Form created and published! It is now accessible to the public.');
+        toast.success('Form created and published! It is now accessible to the public.');
       }
     } catch (error) {
       console.error('Error publishing form:', error);
       console.error('Form data that failed to publish:', form);
-      alert(`Error publishing form: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+      toast.error(`Error publishing form: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
     } finally {
       setSaving(false);
     }
@@ -929,7 +931,7 @@ const FormBuilder: React.FC = () => {
 
   const generateShareUrl = () => {
     if (!form) return '';
-    return `${window.location.origin}/form/${form.id}`;
+    return getShareUrl(`/form/${form.id}`);
   };
 
 
@@ -951,10 +953,10 @@ const FormBuilder: React.FC = () => {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      alert('Link copied to clipboard!');
+      toast.success('Link copied to clipboard!');
     } catch (error) {
       console.error('Error copying to clipboard:', error);
-      alert('Error copying to clipboard. Please try again.');
+      toast.error('Error copying to clipboard. Please try again.');
     }
   };
 
@@ -1130,6 +1132,14 @@ const FormBuilder: React.FC = () => {
                 onChange={(e) => setForm(prev => prev ? { ...prev, title: e.target.value } : null)}
                 className="text-lg sm:text-xl font-semibold bg-transparent text-gray-900 border-none outline-none placeholder-gray-400 w-full truncate"
                 placeholder="Untitled Form"
+              />
+              {/* Form Description - Editable */}
+              <input
+                type="text"
+                value={form?.description || ''}
+                onChange={(e) => setForm(prev => prev ? { ...prev, description: e.target.value } : null)}
+                className="text-sm text-gray-600 bg-transparent border-none outline-none placeholder-gray-400 w-full truncate mt-1"
+                placeholder="Add a description (optional)"
               />
             </div>
             
@@ -2837,12 +2847,12 @@ const FormBuilder: React.FC = () => {
                     <div className="flex space-x-2">
                       <input
                         type="text"
-                        value={form.shareUrl || `${window.location.origin}/form/${form.id}`}
+                        value={getShareUrl(`/form/${form.id}`)}
                         readOnly
                         className="flex-1 px-3 py-2 border border-[#333] rounded-lg bg-[#222] text-white text-sm"
                       />
                       <button
-                        onClick={() => copyToClipboard(form.shareUrl || `${window.location.origin}/form/${form.id}`)}
+                        onClick={() => copyToClipboard(getShareUrl(`/form/${form.id}`))}
                         className="px-4 py-2 bg-[#8B5CF6] text-white rounded-lg font-medium hover:bg-[#7C3AED] transition-colors"
                       >
                         Copy
@@ -2876,12 +2886,12 @@ const FormBuilder: React.FC = () => {
                     <div className="flex space-x-2">
                       <input
                         type="text"
-                        value={`<iframe src="${window.location.origin}/form/${form.id}" width="100%" height="600" frameborder="0" style="border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></iframe>`}
+                        value={`<iframe src="${getShareUrl(`/form/${form.id}`)}" width="100%" height="600" frameborder="0" style="border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></iframe>`}
                         readOnly
                         className="flex-1 px-3 py-2 border border-[#333] rounded-lg bg-[#222] text-white text-xs font-mono"
                       />
                       <button
-                        onClick={() => copyToClipboard(`<iframe src="${window.location.origin}/form/${form.id}" width="100%" height="600" frameborder="0" style="border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></iframe>`)}
+                        onClick={() => copyToClipboard(`<iframe src="${getShareUrl(`/form/${form.id}`)}" width="100%" height="600" frameborder="0" style="border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></iframe>`)}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors text-sm"
                       >
                         Copy
@@ -2895,12 +2905,12 @@ const FormBuilder: React.FC = () => {
                     <div className="flex space-x-2">
                       <input
                         type="text"
-                        value={`<iframe src="${window.location.origin}/form/${form.id}" width="800" height="500" frameborder="0" style="border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></iframe>`}
+                        value={`<iframe src="${getShareUrl(`/form/${form.id}`)}" width="800" height="500" frameborder="0" style="border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></iframe>`}
                         readOnly
                         className="flex-1 px-3 py-2 border border-[#333] rounded-lg bg-[#222] text-white text-xs font-mono"
                       />
                       <button
-                        onClick={() => copyToClipboard(`<iframe src="${window.location.origin}/form/${form.id}" width="800" height="500" frameborder="0" style="border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></iframe>`)}
+                        onClick={() => copyToClipboard(`<iframe src="${getShareUrl(`/form/${form.id}`)}" width="800" height="500" frameborder="0" style="border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></iframe>`)}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors text-sm"
                       >
                         Copy
@@ -2914,12 +2924,12 @@ const FormBuilder: React.FC = () => {
                     <div className="flex space-x-2">
                       <input
                         type="text"
-                        value={`<iframe src="${window.location.origin}/form/${form.id}" width="100%" height="600" frameborder="0"></iframe>`}
+                        value={`<iframe src="${getShareUrl(`/form/${form.id}`)}" width="100%" height="600" frameborder="0"></iframe>`}
                         readOnly
                         className="flex-1 px-3 py-2 border border-[#333] rounded-lg bg-[#222] text-white text-xs font-mono"
                       />
                       <button
-                        onClick={() => copyToClipboard(`<iframe src="${window.location.origin}/form/${form.id}" width="100%" height="600" frameborder="0"></iframe>`)}
+                        onClick={() => copyToClipboard(`<iframe src="${getShareUrl(`/form/${form.id}`)}" width="100%" height="600" frameborder="0"></iframe>`)}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors text-sm"
                       >
                         Copy

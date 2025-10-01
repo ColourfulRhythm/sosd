@@ -5,6 +5,7 @@ import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { SocialMediaIcons } from '../components/SocialMediaIcons';
 import { AccordionLink } from '../components/AccordionLink';
+import { formatUrl } from '../utils/formatUrl';
 
 interface LinkItem {
   id: string;
@@ -115,26 +116,16 @@ const LinkOrganizerView: React.FC = () => {
         [`links.${link.id}.clicks`]: increment(1)
       });
 
-      // Format URL to ensure it has proper protocol
-      let formattedUrl = link.url;
-      
-      // If URL doesn't start with http:// or https://, add https://
-      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-        formattedUrl = `https://${formattedUrl}`;
-      }
+      // Format URL using smart formatting
+      const formattedUrl = formatUrl(link.url);
 
       // Open link in new tab
       window.open(formattedUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
       console.error('Error updating click count:', error);
       
-      // Format URL to ensure it has proper protocol
-      let formattedUrl = link.url;
-      
-      // If URL doesn't start with http:// or https://, add https://
-      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-        formattedUrl = `https://${formattedUrl}`;
-      }
+      // Format URL using smart formatting
+      const formattedUrl = formatUrl(link.url);
       
       // Still open the link even if click tracking fails
       window.open(formattedUrl, '_blank', 'noopener,noreferrer');
@@ -149,26 +140,16 @@ const LinkOrganizerView: React.FC = () => {
         [`products.${product.id}.clicks`]: increment(1)
       });
 
-      // Format URL to ensure it has proper protocol
-      let formattedUrl = product.url;
-      
-      // If URL doesn't start with http:// or https://, add https://
-      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-        formattedUrl = `https://${formattedUrl}`;
-      }
+      // Format URL using smart formatting
+      const formattedUrl = formatUrl(product.url);
 
       // Open link in new tab
       window.open(formattedUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
       console.error('Error updating click count:', error);
       
-      // Format URL to ensure it has proper protocol
-      let formattedUrl = product.url;
-      
-      // If URL doesn't start with http:// or https://, add https://
-      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-        formattedUrl = `https://${formattedUrl}`;
-      }
+      // Format URL using smart formatting
+      const formattedUrl = formatUrl(product.url);
       
       // Still open the link even if click tracking fails
       window.open(formattedUrl, '_blank', 'noopener,noreferrer');

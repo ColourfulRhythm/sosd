@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatUrl } from '../utils/formatUrl';
 
 interface LinkItem {
   id: string;
@@ -49,13 +50,8 @@ export const AccordionLink: React.FC<AccordionLinkProps> = ({
     if (onClick) {
       onClick(link);
     } else {
-      // Format URL to ensure it has proper protocol
-      let formattedUrl = link.url;
-      
-      // If URL doesn't start with http:// or https://, add https://
-      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-        formattedUrl = `https://${formattedUrl}`;
-      }
+      // Format URL using smart formatting
+      const formattedUrl = formatUrl(link.url);
       
       console.log('Opening URL:', formattedUrl);
       

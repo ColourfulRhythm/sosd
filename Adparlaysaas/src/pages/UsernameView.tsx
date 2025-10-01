@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, doc, updateDoc, increment } from 'fi
 import { db } from '../firebase';
 import { SocialMediaIcons } from '../components/SocialMediaIcons';
 import { AccordionLink } from '../components/AccordionLink';
+import { formatUrl } from '../utils/formatUrl';
 import { BackgroundShader } from '../components/shaders';
 
 interface LinkItem {
@@ -143,26 +144,16 @@ const UsernameView: React.FC = () => {
         [`links.${link.id}.clicks`]: increment(1)
       });
 
-      // Format URL to ensure it has proper protocol
-      let formattedUrl = link.url;
-      
-      // If URL doesn't start with http:// or https://, add https://
-      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-        formattedUrl = `https://${formattedUrl}`;
-      }
+      // Format URL using smart formatting
+      const formattedUrl = formatUrl(link.url);
 
       // Open link in new tab
       window.open(formattedUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
       console.error('Error updating click count:', error);
       
-      // Format URL to ensure it has proper protocol
-      let formattedUrl = link.url;
-      
-      // If URL doesn't start with http:// or https://, add https://
-      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-        formattedUrl = `https://${formattedUrl}`;
-      }
+      // Format URL using smart formatting
+      const formattedUrl = formatUrl(link.url);
       
       // Still open the link even if click tracking fails
       window.open(formattedUrl, '_blank', 'noopener,noreferrer');
@@ -177,26 +168,16 @@ const UsernameView: React.FC = () => {
         [`products.${product.id}.clicks`]: increment(1)
       });
 
-      // Format URL to ensure it has proper protocol
-      let formattedUrl = product.url;
-      
-      // If URL doesn't start with http:// or https://, add https://
-      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-        formattedUrl = `https://${formattedUrl}`;
-      }
+      // Format URL using smart formatting
+      const formattedUrl = formatUrl(product.url);
 
       // Open link in new tab
       window.open(formattedUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
       console.error('Error updating click count:', error);
       
-      // Format URL to ensure it has proper protocol
-      let formattedUrl = product.url;
-      
-      // If URL doesn't start with http:// or https://, add https://
-      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-        formattedUrl = `https://${formattedUrl}`;
-      }
+      // Format URL using smart formatting
+      const formattedUrl = formatUrl(product.url);
       
       // Still open the link even if click tracking fails
       window.open(formattedUrl, '_blank', 'noopener,noreferrer');
@@ -268,113 +249,165 @@ const UsernameView: React.FC = () => {
   const visibleProducts = (linkOrganizer.products || []).filter(product => product.isVisible);
 
   return (
-    <div className="min-h-screen bg-gray-900 relative overflow-hidden">
-      {/* Background Shader */}
-      <BackgroundShader shaderId={1} opacity={0.15} className="fixed inset-0" />
-      
-      {/* Decorative Elements */}
-      <div className="absolute top-10 left-10 w-32 h-32 bg-white/5 rounded-full blur-xl"></div>
-      <div className="absolute bottom-20 right-10 w-24 h-24 bg-white/5 rounded-full blur-xl"></div>
-      <div className="absolute top-1/2 left-1/4 w-16 h-16 bg-white/5 rounded-full blur-lg"></div>
-      
-      {/* Mobile-first container */}
-      <div className="max-w-sm mx-auto bg-white min-h-screen relative overflow-hidden shadow-2xl">
-        {/* Swipe indicator */}
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
-          <div className="flex space-x-1">
-            <div 
-              className={`w-2 h-2 rounded-full transition-colors ${
-                activeView === 'links' ? 'bg-blue-600' : 'bg-gray-300'
-              }`}
-            ></div>
-            <div 
-              className={`w-2 h-2 rounded-full transition-colors ${
-                activeView === 'shop' ? 'bg-blue-600' : 'bg-gray-300'
-              }`}
-            ></div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* iPhone-style container with rounded corners and shadow */}
+      <div className="max-w-sm mx-auto bg-white min-h-screen relative overflow-hidden rounded-t-3xl shadow-2xl">
+        {/* Status bar area */}
+        <div className="h-6 bg-black rounded-t-3xl flex items-center justify-center">
+          <div className="w-16 h-1 bg-white rounded-full opacity-60"></div>
+        </div>
+
+        {/* Header with profile */}
+        <div 
+          className="relative overflow-hidden"
+          style={{
+            background: linkOrganizer.backgroundStyle?.type === 'gradient' 
+              ? `linear-gradient(135deg, ${linkOrganizer.backgroundStyle.primaryColor}, ${linkOrganizer.backgroundStyle.secondaryColor})`
+              : linkOrganizer.backgroundStyle?.primaryColor || '#8B5CF6'
+          }}
+        >
+          
+          <div className="relative p-8 pb-12">
+            {/* Profile Section */}
+            <div className="flex flex-col items-center text-center">
+              {linkOrganizer.profileImage ? (
+                <div className="relative mb-6">
+                  <img 
+                    src={linkOrganizer.profileImage} 
+                    alt="Profile" 
+                    className="w-28 h-28 rounded-full shadow-2xl object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-28 h-28 rounded-full bg-white bg-opacity-20 border-4 border-white border-opacity-30 flex items-center justify-center mb-6 shadow-2xl">
+                  <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+              )}
+              
+              <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">
+                {linkOrganizer.profileName}
+              </h1>
+              
+              {/* Bio with word limit */}
+              <p className="text-white text-opacity-90 text-sm leading-relaxed max-w-xs mb-6 line-clamp-3">
+                {linkOrganizer.bio && linkOrganizer.bio.length > 120 
+                  ? `${linkOrganizer.bio.substring(0, 120)}...` 
+                  : linkOrganizer.bio}
+              </p>
+              
+              {/* Social Links - Smaller and below description */}
+              {linkOrganizer.socialLinks && 
+               typeof linkOrganizer.socialLinks === 'object' && 
+               Object.values(linkOrganizer.socialLinks).some(link => link) && (
+                <div className="mb-4">
+                  <SocialMediaIcons 
+                    socialLinks={linkOrganizer.socialLinks}
+                    size="sm"
+                    className="opacity-90"
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Main content with swipe support */}
-        <div 
-          className="relative w-full h-full"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          style={{
-            transform: `translateX(${swipeDirection === 'left' ? '-10px' : swipeDirection === 'right' ? '10px' : '0'})`,
-            transition: swipeDirection ? 'none' : 'transform 0.3s ease-out'
-          }}
-        >
+        {/* Tab Navigation */}
+        <div className="bg-white border-b border-gray-100">
+          <div className="flex">
+            <button
+              onClick={() => setActiveView('links')}
+              className={`flex-1 py-4 px-6 text-sm font-medium transition-colors relative ${
+                activeView === 'links'
+                  ? 'text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                <span>Links</span>
+                {visibleLinks.length > 0 && (
+                  <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                    {visibleLinks.length}
+                  </span>
+                )}
+              </div>
+              {activeView === 'links' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
+              )}
+            </button>
+            
+            <button
+              onClick={() => setActiveView('shop')}
+              className={`flex-1 py-4 px-6 text-sm font-medium transition-colors relative ${
+                activeView === 'shop'
+                  ? 'text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+                <span>Shop</span>
+                {visibleProducts.length > 0 && (
+                  <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                    {visibleProducts.length}
+                  </span>
+                )}
+              </div>
+              {activeView === 'shop' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto">
+
           <AnimatePresence mode="wait">
             {activeView === 'links' && (
               <motion.div
                 key="links"
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: 20, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="w-full"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="p-6"
               >
-                {/* Header */}
-                <div 
-                  className="h-64 relative"
-                  style={{
-                    background: linkOrganizer.backgroundStyle?.type === 'gradient' 
-                      ? `linear-gradient(135deg, ${linkOrganizer.backgroundStyle.primaryColor}, ${linkOrganizer.backgroundStyle.secondaryColor})`
-                      : linkOrganizer.backgroundStyle?.primaryColor || '#1F2937'
-                  }}
-                >
-                  <div className="absolute inset-0 bg-black bg-opacity-10"></div>
-                  <div className="relative p-6 h-full flex flex-col items-center justify-center text-white">
-                    {linkOrganizer.profileImage && (
-                      <img 
-                        src={linkOrganizer.profileImage} 
-                        alt="Profile" 
-                        className="w-24 h-24 rounded-full mb-4 border-4 border-white border-opacity-30 object-cover"
-                      />
-                    )}
-                    <h1 className="text-2xl font-bold mb-2 text-center">{linkOrganizer.profileName}</h1>
-                    <p className="text-center text-white text-opacity-90 text-sm leading-relaxed">
-                      {linkOrganizer.bio}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Links - Accordion Format */}
-                <div className="p-6 space-y-3">
-                  {visibleLinks.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
-                      </div>
-                      <p className="text-gray-600">No links available yet</p>
+                {visibleLinks.length === 0 ? (
+                  <div className="text-center py-16">
+                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
                     </div>
-                  ) : (
-                    visibleLinks
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No links yet</h3>
+                    <p className="text-gray-500 text-sm">Links will appear here when added</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {visibleLinks
                       .sort((a, b) => a.order - b.order)
-                      .map((link) => (
-                        <AccordionLink
+                      .map((link, index) => (
+                        <motion.div
                           key={link.id}
-                          link={link}
-                          theme={linkOrganizer.theme}
-                          onClick={handleLinkClick}
-                          className="w-full"
-                        />
-                      ))
-                  )}
-                </div>
-
-                {/* Social Links - Vector Icons */}
-                {Object.values(linkOrganizer.socialLinks || {}).some(link => link) && (
-                  <div className="px-6 pb-6">
-                    <SocialMediaIcons 
-                      socialLinks={linkOrganizer.socialLinks || {}}
-                      size="lg"
-                      className="mt-4"
-                    />
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1, duration: 0.3 }}
+                        >
+                          <AccordionLink
+                            link={link}
+                            theme={linkOrganizer.theme}
+                            onClick={handleLinkClick}
+                            className="w-full"
+                          />
+                        </motion.div>
+                      ))}
                   </div>
                 )}
               </motion.div>
@@ -383,108 +416,86 @@ const UsernameView: React.FC = () => {
             {activeView === 'shop' && (
               <motion.div
                 key="shop"
-                initial={{ x: 20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: -20, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="w-full"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="p-6"
               >
-                {/* Shop Header */}
-                <div 
-                  className="h-32 relative"
-                  style={{
-                    background: linkOrganizer.backgroundStyle?.type === 'gradient' 
-                      ? `linear-gradient(135deg, ${linkOrganizer.backgroundStyle.primaryColor}, ${linkOrganizer.backgroundStyle.secondaryColor})`
-                      : linkOrganizer.backgroundStyle?.primaryColor || '#1F2937'
-                  }}
-                >
-                  <div className="absolute inset-0 bg-black bg-opacity-10"></div>
-                  <div className="relative p-6 h-full flex flex-col items-center justify-center text-white">
-                    <h1 className="text-xl font-bold mb-1">Shop</h1>
-                    <p className="text-sm opacity-90">{linkOrganizer.profileName}</p>
-                  </div>
-                </div>
-
-                {/* Products Grid */}
-                <div className="p-4">
-                  {visibleProducts.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                        </svg>
-                      </div>
-                      <p className="text-gray-600">No products available yet</p>
+                {visibleProducts.length === 0 ? (
+                  <div className="text-center py-16">
+                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                      </svg>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-4">
-                      {visibleProducts.map((product, index) => (
-                        <motion.button
-                          key={product.id}
-                          onClick={() => handleProductClick(product)}
-                          className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 hover:shadow-lg transition-all transform hover:scale-105 active:scale-95"
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                        >
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No products yet</h3>
+                    <p className="text-gray-500 text-sm">Products will appear here when added</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    {visibleProducts.map((product, index) => (
+                      <motion.button
+                        key={product.id}
+                        onClick={() => handleProductClick(product)}
+                        className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-lg transition-all duration-300 group"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1, duration: 0.3 }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        {/* Product Image */}
+                        <div className="aspect-square relative overflow-hidden">
                           {product.image ? (
-                            <div className="aspect-square relative">
-                              <img 
-                                src={product.image} 
-                                alt={product.title}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
+                            <img 
+                              src={product.image} 
+                              alt={product.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
                           ) : (
-                            <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                            <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
                               <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                               </svg>
                             </div>
                           )}
-                          
-                          <div className="p-3">
-                            <h3 className="font-semibold text-gray-900 text-sm mb-1 line-clamp-2">
-                              {product.title}
-                            </h3>
-                            <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                              {product.description}
-                            </p>
-                            {product.price && (
-                              <div className="text-sm font-bold text-green-600 mb-2">
-                                {product.price}
-                              </div>
-                            )}
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-blue-600 font-medium">View Product</span>
-                              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                              </svg>
+                          {/* Overlay on hover */}
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-300"></div>
+                        </div>
+                        
+                        {/* Product Info */}
+                        <div className="p-4">
+                          <h3 className="font-semibold text-gray-900 text-sm mb-2 line-clamp-2 leading-tight">
+                            {product.title}
+                          </h3>
+                          <p className="text-xs text-gray-600 mb-3 line-clamp-2 leading-relaxed">
+                            {product.description}
+                          </p>
+                          {product.price && (
+                            <div className="text-sm font-bold text-green-600 mb-3">
+                              {product.price}
                             </div>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-blue-600 font-medium">View Product</span>
+                            <svg className="w-4 h-4 text-blue-600 group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
                           </div>
-                        </motion.button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
+
         </div>
 
-        {/* Swipe hint */}
-        {activeView === 'links' && visibleProducts.length > 0 && (
-          <div className="absolute bottom-4 right-4 bg-blue-600 text-white px-3 py-2 rounded-full text-xs font-medium shadow-lg">
-            ← Swipe for Shop
-          </div>
-        )}
-        {activeView === 'shop' && visibleLinks.length > 0 && (
-          <div className="absolute bottom-4 left-4 bg-blue-600 text-white px-3 py-2 rounded-full text-xs font-medium shadow-lg">
-            Swipe for Links →
-          </div>
-        )}
+        {/* Bottom safe area for iPhone */}
+        <div className="h-8 bg-white"></div>
       </div>
     </div>
   );

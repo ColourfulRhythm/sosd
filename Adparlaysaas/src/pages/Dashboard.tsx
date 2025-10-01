@@ -52,12 +52,22 @@ const Dashboard: React.FC = () => {
   const [deletingLandingPages, setDeletingLandingPages] = useState<Set<string>>(new Set());
   const [linkOrganizers, setLinkOrganizers] = useState<any[]>([]);
   const [deletingLinkOrganizers, setDeletingLinkOrganizers] = useState<Set<string>>(new Set());
+  
+  // Loading states for better UX
+  const [loadingForms, setLoadingForms] = useState(false);
+  const [loadingLandingPages, setLoadingLandingPages] = useState(false);
+  const [loadingLinkOrganizers, setLoadingLinkOrganizers] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
+      // Load forms first (most important), then others in background
       fetchForms();
-      fetchLandingPages();
-      fetchLinkOrganizers();
+      
+      // Load other data with a slight delay to improve perceived performance
+      setTimeout(() => {
+        fetchLandingPages();
+        fetchLinkOrganizers();
+      }, 100);
     }
   }, [currentUser]);
 
@@ -152,6 +162,7 @@ const Dashboard: React.FC = () => {
       return;
     }
     
+    setLoadingForms(true);
     try {
       console.log('fetchForms: Fetching forms for user:', currentUser.id);
       
@@ -289,6 +300,8 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Error fetching forms:', error);
       setLoading(false);
+    } finally {
+      setLoadingForms(false);
     }
   };
 
@@ -298,6 +311,7 @@ const Dashboard: React.FC = () => {
       return;
     }
     
+    setLoadingLandingPages(true);
     try {
       console.log('fetchLandingPages: Fetching landing pages for user:', currentUser.id);
       
@@ -358,6 +372,8 @@ const Dashboard: React.FC = () => {
       
     } catch (error) {
       console.error('Error fetching landing pages:', error);
+    } finally {
+      setLoadingLandingPages(false);
     }
   };
 
@@ -402,6 +418,7 @@ const Dashboard: React.FC = () => {
       return;
     }
     
+    setLoadingLinkOrganizers(true);
     try {
       console.log('fetchLinkOrganizers: Fetching link organizers for user:', currentUser.id);
       
@@ -456,6 +473,8 @@ const Dashboard: React.FC = () => {
       
     } catch (error) {
       console.error('Error fetching link organizers:', error);
+    } finally {
+      setLoadingLinkOrganizers(false);
     }
   };
 
@@ -945,7 +964,12 @@ const Dashboard: React.FC = () => {
             {/* Forms List */}
             <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Your Forms</h2>
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  Your Forms
+                  {loadingForms && (
+                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                </h2>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleRefresh}
@@ -1043,7 +1067,12 @@ const Dashboard: React.FC = () => {
             {/* Landing Pages List */}
             <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Your Landing Pages</h2>
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  Your Landing Pages
+                  {loadingLandingPages && (
+                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                </h2>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleRefresh}
@@ -1143,7 +1172,12 @@ const Dashboard: React.FC = () => {
             {/* Link Organizers List */}
             <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Your Link Organizers</h2>
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  Your Link Organizers
+                  {loadingLinkOrganizers && (
+                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                </h2>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleRefresh}

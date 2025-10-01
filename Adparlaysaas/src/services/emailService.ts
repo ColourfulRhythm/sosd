@@ -1,3 +1,5 @@
+import { getBaseUrl } from '../utils/getBaseUrl';
+
 interface EmailNotificationData {
   to: string;
   subject: string;
@@ -172,7 +174,7 @@ class EmailService {
             <p style="margin: 0 0 16px 0; color: #1e40af; font-weight: 600;">
               View this lead in your dashboard
             </p>
-            <a href="${window.location.origin}/responses" 
+            <a href="${getBaseUrl()}/responses" 
                style="display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; transition: background-color 0.2s;">
               View All Leads
             </a>
@@ -182,7 +184,7 @@ class EmailService {
             <p style="margin: 0;">
               This email was sent because you have email notifications enabled for your forms.
               <br>
-              <a href="${window.location.origin}/settings" style="color: #3b82f6;">Manage notification settings</a>
+              <a href="${getBaseUrl()}/settings" style="color: #3b82f6;">Manage notification settings</a>
             </p>
           </div>
         </body>
@@ -275,7 +277,7 @@ class EmailService {
           </div>
 
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/builder" 
+            <a href="${getBaseUrl()}/builder" 
                style="display: inline-block; background: #3b82f6; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; transition: background-color 0.2s;">
               Start Building Your First Form
             </a>
@@ -288,7 +290,7 @@ class EmailService {
             <p style="margin: 0 0 12px 0; color: #1e40af;">
               Check out our documentation or reach out to our support team.
             </p>
-            <a href="${window.location.origin}/help" style="color: #3b82f6; text-decoration: none;">
+            <a href="${getBaseUrl()}/help" style="color: #3b82f6; text-decoration: none;">
               Visit Help Center →
             </a>
           </div>
@@ -297,7 +299,7 @@ class EmailService {
             <p style="margin: 0;">
               You're receiving this email because you signed up for AdParlay.
               <br>
-              <a href="${window.location.origin}/settings" style="color: #3b82f6;">Manage your email preferences</a>
+              <a href="${getBaseUrl()}/settings" style="color: #3b82f6;">Manage your email preferences</a>
             </p>
           </div>
         </body>
