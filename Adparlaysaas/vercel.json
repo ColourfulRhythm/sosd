@@ -36,11 +36,11 @@
     }
   ],
   "env": {
-    "REACT_APP_FIREBASE_API_KEY": "@firebase-api-key",
-    "REACT_APP_FIREBASE_AUTH_DOMAIN": "@firebase-auth-domain",
-    "REACT_APP_FIREBASE_PROJECT_ID": "@firebase-project-id",
-    "REACT_APP_FIREBASE_STORAGE_BUCKET": "@firebase-storage-bucket",
-    "REACT_APP_FIREBASE_MESSAGING_SENDER_ID": "@firebase-messaging-sender-id",
-    "REACT_APP_FIREBASE_APP_ID": "@firebase-app-id"
+    "REACT_APP_FIREBASE_API_KEY": "AIzaSyD2xc7M7jzmMclR2T85-17Pff8Y7UtniME",
+    "REACT_APP_FIREBASE_AUTH_DOMAIN": "adparlaysaas.firebaseapp.com",
+    "REACT_APP_FIREBASE_PROJECT_ID": "adparlaysaas",
+    "REACT_APP_FIREBASE_STORAGE_BUCKET": "adparlaysaas.firebasestorage.app",
+    "REACT_APP_FIREBASE_MESSAGING_SENDER_ID": "552884113485",
+    "REACT_APP_FIREBASE_APP_ID": "1:552884113485:web:64e2416884dfe311654c04"
   }
 }

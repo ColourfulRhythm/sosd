@@ -7,6 +7,7 @@ import { SocialMediaIcons } from '../components/SocialMediaIcons';
 import { AccordionLink } from '../components/AccordionLink';
 import { formatUrl } from '../utils/formatUrl';
 import { BackgroundShader } from '../components/shaders';
+import { Link, User, Camera, ExternalLink } from 'lucide-react';
 
 interface LinkItem {
   id: string;
@@ -83,6 +84,55 @@ const UsernameView: React.FC = () => {
       fetchLinkOrganizerByUsername();
     }
   }, [username]);
+
+  // Update document head for social sharing
+  useEffect(() => {
+    if (linkOrganizer) {
+      // Update document title
+      document.title = `${linkOrganizer.profileName || 'Link Page'} - Adparlay`;
+      
+      // Update or create meta tags for social sharing
+      const updateMetaTag = (property: string, content: string) => {
+        let meta = document.querySelector(`meta[property="${property}"]`) as HTMLMetaElement;
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.setAttribute('property', property);
+          document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', content);
+      };
+      
+      const updateMetaName = (name: string, content: string) => {
+        let meta = document.querySelector(`meta[name="${name}"]`) as HTMLMetaElement;
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.setAttribute('name', name);
+          document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', content);
+      };
+      
+      // Use profile image or default preview image
+      const previewImage = linkOrganizer.profileImage || 'https://adparlaysaas.web.app/logo512.png';
+      
+      // Open Graph tags
+      updateMetaTag('og:title', `${linkOrganizer.profileName || 'Link Page'} - Adparlay`);
+      updateMetaTag('og:description', linkOrganizer.bio || 'Check out my links and products');
+      updateMetaTag('og:type', 'website');
+      updateMetaTag('og:url', window.location.href);
+      updateMetaTag('og:site_name', 'Adparlay');
+      updateMetaTag('og:image', previewImage);
+      
+      // Twitter tags
+      updateMetaName('twitter:card', 'summary_large_image');
+      updateMetaName('twitter:title', `${linkOrganizer.profileName || 'Link Page'} - Adparlay`);
+      updateMetaName('twitter:description', linkOrganizer.bio || 'Check out my links and products');
+      updateMetaName('twitter:image', previewImage);
+      
+      // Basic meta description
+      updateMetaName('description', linkOrganizer.bio || 'Check out my links and products');
+    }
+  }, [linkOrganizer]);
 
   const fetchLinkOrganizerByUsername = async () => {
     if (!username) return;
@@ -220,10 +270,10 @@ const UsernameView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-300">Loading...</p>
         </div>
       </div>
     );
@@ -231,15 +281,15 @@ const UsernameView: React.FC = () => {
 
   if (error || !linkOrganizer) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-16 h-16 bg-red-900 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Page Not Found</h1>
-          <p className="text-gray-600">{error || 'This link page does not exist or has been removed.'}</p>
+          <h1 className="text-xl font-bold text-white mb-2">Page Not Found</h1>
+          <p className="text-gray-300">{error || 'This link page does not exist or has been removed.'}</p>
         </div>
       </div>
     );
@@ -249,119 +299,100 @@ const UsernameView: React.FC = () => {
   const visibleProducts = (linkOrganizer.products || []).filter(product => product.isVisible);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* iPhone-style container with rounded corners and shadow */}
-      <div className="max-w-sm mx-auto bg-white min-h-screen relative overflow-hidden rounded-t-3xl shadow-2xl">
-        {/* Status bar area */}
-        <div className="h-6 bg-black rounded-t-3xl flex items-center justify-center">
-          <div className="w-16 h-1 bg-white rounded-full opacity-60"></div>
-        </div>
+    <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col items-center p-4 sm:p-8">
+      <style>
+        {`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass-card {
+          background-color: rgba(31, 31, 31, 0.7);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          box-shadow: 0 4px 60px rgba(0, 0, 0, 0.5);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        `}
+      </style>
 
-        {/* Header with profile */}
-        <div 
-          className="relative overflow-hidden"
-          style={{
-            background: linkOrganizer.backgroundStyle?.type === 'gradient' 
-              ? `linear-gradient(135deg, ${linkOrganizer.backgroundStyle.primaryColor}, ${linkOrganizer.backgroundStyle.secondaryColor})`
-              : linkOrganizer.backgroundStyle?.primaryColor || '#8B5CF6'
-          }}
-        >
-          
-          <div className="relative p-8 pb-12">
-            {/* Profile Section */}
-            <div className="flex flex-col items-center text-center">
-              {linkOrganizer.profileImage ? (
-                <div className="relative mb-6">
-                  <img 
-                    src={linkOrganizer.profileImage} 
-                    alt="Profile" 
-                    className="w-28 h-28 rounded-full shadow-2xl object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="w-28 h-28 rounded-full bg-white bg-opacity-20 border-4 border-white border-opacity-30 flex items-center justify-center mb-6 shadow-2xl">
-                  <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
-              )}
-              
-              <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">
-                {linkOrganizer.profileName}
-              </h1>
-              
-              {/* Bio with word limit */}
-              <p className="text-white text-opacity-90 text-sm leading-relaxed max-w-xs mb-6 line-clamp-3">
-                {linkOrganizer.bio && linkOrganizer.bio.length > 120 
-                  ? `${linkOrganizer.bio.substring(0, 120)}...` 
-                  : linkOrganizer.bio}
-              </p>
-              
-              {/* Social Links - Smaller and below description */}
-              {linkOrganizer.socialLinks && 
-               typeof linkOrganizer.socialLinks === 'object' && 
-               Object.values(linkOrganizer.socialLinks).some(link => link) && (
-                <div className="mb-4">
-                  <SocialMediaIcons 
-                    socialLinks={linkOrganizer.socialLinks}
-                    size="sm"
-                    className="opacity-90"
-                  />
-                </div>
-              )}
+      <main className="w-full max-w-lg">
+        {/* Profile Header with Glass Morphism */}
+        <div className="glass-card rounded-[36px] p-6 mb-8 text-center transition-all duration-300">
+
+          {linkOrganizer.profileImage ? (
+            <img
+              src={linkOrganizer.profileImage}
+              alt={`${linkOrganizer.profileName}'s Profile`}
+              className="w-28 h-28 rounded-full mx-auto mb-4 border-4 border-gray-700 object-cover shadow-xl"
+            />
+          ) : (
+            <div className="w-28 h-28 rounded-full bg-gray-700 mx-auto mb-4 border-4 border-gray-600 flex items-center justify-center shadow-xl">
+              <User size={32} className="text-gray-400" />
             </div>
-          </div>
+          )}
+          
+          <h1 className="text-4xl font-extrabold mb-1 tracking-tight text-white">
+            {linkOrganizer.profileName}
+          </h1>
+          
+          <p className="text-gray-400 text-lg font-light max-w-xs mx-auto mb-4">
+            {linkOrganizer.bio && linkOrganizer.bio.length > 120 
+              ? `${linkOrganizer.bio.substring(0, 120)}...` 
+              : linkOrganizer.bio}
+          </p>
+
+          {/* Social Links */}
+          {linkOrganizer.socialLinks && 
+           typeof linkOrganizer.socialLinks === 'object' && 
+           Object.values(linkOrganizer.socialLinks).some(link => link) && (
+            <div className="mb-4">
+              <SocialMediaIcons 
+                socialLinks={linkOrganizer.socialLinks}
+                size="sm"
+                className="opacity-90"
+              />
+            </div>
+          )}
         </div>
 
         {/* Tab Navigation */}
-        <div className="bg-white border-b border-gray-100">
+        <div className="glass-card rounded-2xl p-2 mb-6">
           <div className="flex">
             <button
               onClick={() => setActiveView('links')}
-              className={`flex-1 py-4 px-6 text-sm font-medium transition-colors relative ${
+              className={`flex-1 py-3 px-4 text-sm font-medium transition-all duration-300 rounded-xl ${
                 activeView === 'links'
-                  ? 'text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
               <div className="flex items-center justify-center space-x-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
+                <Link size={16} />
                 <span>Links</span>
                 {visibleLinks.length > 0 && (
-                  <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                  <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
                     {visibleLinks.length}
                   </span>
                 )}
               </div>
-              {activeView === 'links' && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
-              )}
             </button>
             
             <button
               onClick={() => setActiveView('shop')}
-              className={`flex-1 py-4 px-6 text-sm font-medium transition-colors relative ${
+              className={`flex-1 py-3 px-4 text-sm font-medium transition-all duration-300 rounded-xl ${
                 activeView === 'shop'
-                  ? 'text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
             >
               <div className="flex items-center justify-center space-x-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
+                <Camera size={16} />
                 <span>Shop</span>
                 {visibleProducts.length > 0 && (
-                  <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                  <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
                     {visibleProducts.length}
                   </span>
                 )}
               </div>
-              {activeView === 'shop' && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
-              )}
             </button>
           </div>
         </div>
@@ -381,13 +412,11 @@ const UsernameView: React.FC = () => {
               >
                 {visibleLinks.length === 0 ? (
                   <div className="text-center py-16">
-                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                      </svg>
+                    <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <Link className="w-10 h-10 text-gray-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No links yet</h3>
-                    <p className="text-gray-500 text-sm">Links will appear here when added</p>
+                    <h3 className="text-lg font-semibold text-white mb-2">No links yet</h3>
+                    <p className="text-gray-400 text-sm">Links will appear here when added</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -424,13 +453,11 @@ const UsernameView: React.FC = () => {
               >
                 {visibleProducts.length === 0 ? (
                   <div className="text-center py-16">
-                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                      </svg>
+                    <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <Camera className="w-10 h-10 text-gray-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No products yet</h3>
-                    <p className="text-gray-500 text-sm">Products will appear here when added</p>
+                    <h3 className="text-lg font-semibold text-white mb-2">No products yet</h3>
+                    <p className="text-gray-400 text-sm">Products will appear here when added</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
@@ -438,7 +465,7 @@ const UsernameView: React.FC = () => {
                       <motion.button
                         key={product.id}
                         onClick={() => handleProductClick(product)}
-                        className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-lg transition-all duration-300 group"
+                        className="bg-gray-800 rounded-2xl shadow-sm overflow-hidden border border-gray-700 hover:shadow-lg transition-all duration-300 group"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.1, duration: 0.3 }}
@@ -454,10 +481,8 @@ const UsernameView: React.FC = () => {
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             />
                           ) : (
-                            <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
+                            <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+                              <Camera className="w-8 h-8 text-gray-400" />
                             </div>
                           )}
                           {/* Overlay on hover */}
@@ -466,22 +491,20 @@ const UsernameView: React.FC = () => {
                         
                         {/* Product Info */}
                         <div className="p-4">
-                          <h3 className="font-semibold text-gray-900 text-sm mb-2 line-clamp-2 leading-tight">
+                          <h3 className="font-semibold text-white text-sm mb-2 line-clamp-2 leading-tight">
                             {product.title}
                           </h3>
-                          <p className="text-xs text-gray-600 mb-3 line-clamp-2 leading-relaxed">
+                          <p className="text-xs text-gray-400 mb-3 line-clamp-2 leading-relaxed">
                             {product.description}
                           </p>
                           {product.price && (
-                            <div className="text-sm font-bold text-green-600 mb-3">
+                            <div className="text-sm font-bold text-green-400 mb-3">
                               {product.price}
                             </div>
                           )}
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-blue-600 font-medium">View Product</span>
-                            <svg className="w-4 h-4 text-blue-600 group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
+                            <span className="text-xs text-blue-400 font-medium">View Product</span>
+                            <ExternalLink className="w-4 h-4 text-blue-400 group-hover:translate-x-1 transition-transform duration-200" />
                           </div>
                         </div>
                       </motion.button>
@@ -494,9 +517,7 @@ const UsernameView: React.FC = () => {
 
         </div>
 
-        {/* Bottom safe area for iPhone */}
-        <div className="h-8 bg-white"></div>
-      </div>
+      </main>
     </div>
   );
 };

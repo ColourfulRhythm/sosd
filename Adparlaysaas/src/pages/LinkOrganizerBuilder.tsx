@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,7 +7,7 @@ import { db } from '../firebase';
 import { useSEO } from '../hooks/useSEO';
 import { getBaseUrl } from '../utils/getBaseUrl';
 import { SocialMediaIcons } from '../components/SocialMediaIcons';
-import { AccordionLink } from '../components/AccordionLink';
+import { Link, User, Pencil, Save, Plus, X, Trash2, ArrowUp, ArrowDown, Camera, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface LinkItem {
@@ -15,7 +15,9 @@ interface LinkItem {
   title: string;
   url: string;
   description?: string;
-  icon?: string;
+  icon?: 'Link' | 'User' | 'Camera';
+  customIcon?: string;
+  iconType?: 'default' | 'custom';
   color?: string;
   type: 'link' | 'social' | 'product' | 'poll' | 'quiz' | 'form' | 'embed';
   isVisible: boolean;
@@ -54,10 +56,9 @@ interface LinkOrganizer {
     tiktok?: string;
   };
   backgroundStyle?: {
-    type: 'gradient' | 'solid' | 'image';
-    primaryColor?: string;
+    type: 'solid' | 'gradient';
+    primaryColor: string;
     secondaryColor?: string;
-    imageUrl?: string;
   };
   links: LinkItem[];
   products: ProductItem[];
@@ -70,6 +71,413 @@ interface LinkOrganizer {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// --- LINK MODULE (The Core UI Element) ---
+const LinkModule = ({ link, isEditing, onDelete, onEditClick, onReorder }: {
+  link: LinkItem;
+  isEditing: boolean;
+  onDelete: (id: string) => void;
+  onEditClick: (link: LinkItem) => void;
+  onReorder: (id: string, direction: 'up' | 'down') => void;
+}) => {
+  // Dynamically select icon based on the string name or custom icon
+  const iconMap = { Link, User, Camera: Pencil };
+  const IconComponent = link.icon ? iconMap[link.icon] || Link : Link;
+
+  const moduleClasses = isEditing
+    ? 'opacity-80 border-2 border-dashed border-gray-600 hover:border-gray-500'
+    : 'hover:scale-[1.01] transition-transform shadow-xl hover:shadow-2xl';
+
+  const handleNavigation = (e: React.MouseEvent) => {
+    if (!isEditing && link.url) {
+      e.preventDefault();
+      window.open(link.url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  return (
+    <div className={`
+      w-full p-4 rounded-3xl bg-gray-900 transition-all duration-300
+      flex items-center justify-between text-gray-100 ${moduleClasses}
+      mb-4 cursor-pointer
+    `} style={{ borderColor: isEditing ? link.color : 'transparent' }}>
+      <a
+        href={link.url || '#'}
+        onClick={handleNavigation}
+        className="flex-grow flex items-center min-w-0"
+        aria-label={`Go to ${link.title}`}
+      >
+        {/* Icon Circle */}
+        <div
+          className="p-3 mr-4 rounded-full flex items-center justify-center transition-colors duration-300 shadow-lg flex-shrink-0"
+          style={{ backgroundColor: link.color || '#70d6ff' }}
+        >
+          {link.customIcon && link.iconType === 'custom' ? (
+            <img 
+              src={link.customIcon} 
+              alt={link.title} 
+              className="w-5 h-5 object-cover"
+            />
+          ) : (
+          <IconComponent size={20} className="text-white" />
+          )}
+        </div>
+        {/* Link Title */}
+        <span className="text-xl font-medium truncate">
+          {link.title}
+        </span>
+      </a>
+
+      {/* Editing Controls */}
+      {isEditing && (
+        <div className="flex space-x-2 flex-shrink-0">
+          <button
+            onClick={() => onEditClick(link)}
+            className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
+            aria-label="Edit link"
+          >
+            <Pencil size={18} />
+          </button>
+          <button
+            onClick={() => onReorder(link.id, 'up')}
+            className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
+            aria-label="Move link up"
+          >
+            <ArrowUp size={18} />
+          </button>
+          <button
+            onClick={() => onReorder(link.id, 'down')}
+            className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
+            aria-label="Move link down"
+          >
+            <ArrowDown size={18} />
+          </button>
+          <button
+            onClick={() => onDelete(link.id)}
+            className="p-2 rounded-full bg-red-600 hover:bg-red-700 transition-colors"
+            aria-label="Delete link"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- IMAGE UTILITIES ---
+const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    const img = new Image();
+    
+    img.onload = () => {
+      // Calculate new dimensions
+      let { width, height } = img;
+      
+      if (width > height) {
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Draw and resize
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Convert to base64
+      const dataUrl = canvas.toDataURL('image/png');
+      resolve(dataUrl);
+    };
+    
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+// --- LINK EDITOR MODAL ---
+const LinkEditor = ({ currentLink, onClose, onSave }: {
+  currentLink: LinkItem | null;
+  onClose: () => void;
+  onSave: (linkData: LinkItem) => void;
+}) => {
+  const [title, setTitle] = useState(currentLink?.title || '');
+  const [url, setUrl] = useState(currentLink?.url || '');
+  const [color, setColor] = useState(currentLink?.color || '#70d6ff');
+  const [description, setDescription] = useState(currentLink?.description || '');
+  const [price, setPrice] = useState((currentLink as any)?.price || '');
+  const [image, setImage] = useState((currentLink as any)?.image || '');
+  const [customIcon, setCustomIcon] = useState((currentLink as any)?.customIcon || '');
+  const [iconType, setIconType] = useState<'default' | 'custom'>((currentLink as any)?.customIcon ? 'custom' : 'default');
+
+  const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const resizedImage = await resizeImage(file, 64, 64); // Icon size
+        setCustomIcon(resizedImage);
+        setIconType('custom');
+      } catch (error) {
+        console.error('Error uploading icon:', error);
+      }
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const resizedImage = await resizeImage(file, 400, 400); // Product image size
+        setImage(resizedImage);
+      } catch (error) {
+        console.error('Error uploading image:', error);
+      }
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (currentLink) {
+      const linkData = {
+        ...currentLink,
+        title,
+        url,
+        color,
+        description,
+        customIcon: iconType === 'custom' ? customIcon : '',
+        iconType
+      };
+      
+      // Add product-specific fields if it's a product
+      if (currentLink.type === 'product') {
+        (linkData as any).price = price;
+        (linkData as any).image = image;
+      }
+      
+      onSave(linkData);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-gray-900 p-6 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-100">
+            {currentLink?.type === 'product' 
+              ? (currentLink?.id ? 'Edit Product' : 'Add New Product')
+              : (currentLink?.id ? 'Edit Link' : 'Add New Link')
+            }
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close editor">
+            <X size={24} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="link-title">
+              {currentLink?.type === 'product' ? 'Product Title' : 'Title'}
+            </label>
+            <input
+              id="link-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full p-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="link-description">Description</label>
+            <textarea
+              id="link-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full p-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:ring-blue-500 focus:border-blue-500"
+              rows={3}
+            />
+          </div>
+
+          {/* Icon Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Icon</label>
+            <div className="space-y-3">
+              <div className="flex space-x-4">
+                <button
+                  type="button"
+                  onClick={() => setIconType('default')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                    iconType === 'default' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  Default Icons
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIconType('custom')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                    iconType === 'custom' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  Upload Icon
+                </button>
+              </div>
+              
+              {iconType === 'default' ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {['Link', 'User', 'Camera'].map((iconName) => {
+                    const iconMap: { [key: string]: any } = { Link, User, Camera: Pencil };
+                    const IconComponent = iconMap[iconName];
+                    return (
+                      <button
+                        key={iconName}
+                        type="button"
+                        onClick={() => {
+                          setIconType('default');
+                          // Update the icon in the current link object
+                          if (currentLink) {
+                            currentLink.icon = iconName as 'Link' | 'User' | 'Camera';
+                            currentLink.customIcon = '';
+                            currentLink.iconType = 'default';
+                          }
+                        }}
+                        className={`p-3 rounded-lg border-2 transition-colors ${
+                          currentLink?.icon === iconName
+                            ? 'border-blue-500 bg-blue-500/20'
+                            : 'border-gray-600 hover:border-gray-500'
+                        }`}
+                      >
+                        <IconComponent size={20} className="text-white mx-auto" />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleIconUpload}
+                    className="hidden"
+                    id="icon-upload"
+                  />
+                  <label
+                    htmlFor="icon-upload"
+                    className="block w-full p-4 border-2 border-dashed border-gray-600 rounded-lg text-center cursor-pointer hover:border-gray-500 transition-colors"
+                  >
+                    {customIcon ? (
+                      <div className="space-y-2">
+                        <img src={customIcon} alt="Custom icon" className="w-12 h-12 mx-auto rounded-lg object-cover" />
+                        <p className="text-sm text-gray-300">Click to change icon</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Camera size={24} className="text-gray-400 mx-auto" />
+                        <p className="text-sm text-gray-300">Upload custom icon</p>
+                        <p className="text-xs text-gray-500">Max 64x64px, will be auto-resized</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {currentLink?.type === 'product' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="product-price">Price</label>
+                <input
+                  id="product-price"
+                  type="text"
+                  placeholder="e.g., $29.99"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="w-full p-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Product Image</label>
+                <div className="space-y-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    id="product-image-upload"
+                  />
+                  <label
+                    htmlFor="product-image-upload"
+                    className="block w-full p-6 border-2 border-dashed border-gray-600 rounded-lg text-center cursor-pointer hover:border-gray-500 transition-colors"
+                  >
+                    {image ? (
+                      <div className="space-y-3">
+                        <img src={image} alt="Product" className="w-24 h-24 mx-auto rounded-lg object-cover" />
+                        <p className="text-sm text-gray-300">Click to change image</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <Camera size={32} className="text-gray-400 mx-auto" />
+                        <p className="text-sm text-gray-300">Upload product image</p>
+                        <p className="text-xs text-gray-500">Max 400x400px, will be auto-resized</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="link-url">
+              {currentLink?.type === 'product' ? 'Product URL' : 'URL'}
+            </label>
+            <input
+              id="link-url"
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="w-full p-3 rounded-xl bg-gray-800 border border-gray-700 text-white focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1" htmlFor="link-color">Accent Color</label>
+            <input
+              id="link-color"
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="w-full h-10 p-1 rounded-xl bg-gray-800 border border-gray-700"
+            />
+          </div>
+          
+          <button
+            type="submit"
+            className="w-full py-3 mt-4 rounded-xl text-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg"
+          >
+            <Save size={20} className="inline-block mr-2" />
+            {currentLink?.type === 'product' ? 'Save Product' : 'Save Link'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 const LinkOrganizerBuilder: React.FC = () => {
   const { currentUser } = useAuth();
@@ -90,8 +498,8 @@ const LinkOrganizerBuilder: React.FC = () => {
     description: 'Welcome to my link page',
     profileName: currentUser?.displayName || 'Your Name',
     bio: 'Add a short bio here...',
-    username: currentUser?.email?.split('@')[0] || 'username', // Default username from email
-    isPublic: true, // Make link organizers public by default
+    username: currentUser?.email?.split('@')[0] || 'username',
+    isPublic: true,
     socialLinks: {},
     backgroundStyle: {
       type: 'gradient',
@@ -110,1677 +518,806 @@ const LinkOrganizerBuilder: React.FC = () => {
     updatedAt: new Date()
   });
 
-  const [activeTab, setActiveTab] = useState<'design' | 'links' | 'shop'>('design');
-  const [showAddLink, setShowAddLink] = useState(false);
-  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [activeTab, setActiveTab] = useState<'links' | 'shop'>('links');
+  const [isEditing, setIsEditing] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkItem | null>(null);
-  const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [tempValue, setTempValue] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // Form states for adding/editing
-  const [linkForm, setLinkForm] = useState({
-    title: '',
-    url: '',
-    description: '',
-    icon: '',
-    color: '#8B5CF6',
-    type: 'link' as LinkItem['type']
-  });
-
-  const [productForm, setProductForm] = useState({
-    title: '',
-    description: '',
-    price: '',
-    image: '',
-    url: '',
-    category: ''
-  });
-
-  // Username availability states
-  const [usernameStatus, setUsernameStatus] = useState<'checking' | 'available' | 'taken' | 'invalid' | null>(null);
-  const [usernameLocked, setUsernameLocked] = useState(false);
-
-  // Debounced username checking
-  const checkUsernameLive = async (username: string) => {
-    if (!username || username.length < 3) {
-      setUsernameStatus(null);
-      return;
-    }
-
-    // Check format
-    const usernameRegex = /^[a-zA-Z0-9_-]+$/;
-    if (!usernameRegex.test(username)) {
-      setUsernameStatus('invalid');
-      return;
-    }
-
-    setUsernameStatus('checking');
+  // --- CRUD OPERATIONS FOR "EDITOR IS PREVIEW" APPROACH ---
+  
+  const handleSaveLink = async (linkData: LinkItem & { isNew?: boolean }) => {
+    if (!linkOrganizer.id || !currentUser?.id) return;
     
     try {
-      const isAvailable = await checkUsernameAvailability(username, linkOrganizer.id);
-      setUsernameStatus(isAvailable ? 'available' : 'taken');
-    } catch (error) {
-      console.error('Error checking username:', error);
-      setUsernameStatus(null);
-    }
-  };
-
-  // Debounce username checking
-  const [usernameCheckTimeout, setUsernameCheckTimeout] = useState<NodeJS.Timeout | null>(null);
-
-  // Load existing link organizer data when editing
-  const fetchLinkOrganizer = async (linkOrganizerId: string) => {
-    try {
-      console.log('Fetching link organizer with ID:', linkOrganizerId);
-      const docRef = doc(db, 'linkOrganizers', linkOrganizerId);
-      const docSnap = await getDoc(docRef);
+      setSaving(true);
       
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        console.log('Raw data from Firestore:', data);
-        
-        // Safely process links array
-        const safeLinks = Array.isArray(data.links) ? data.links.map((link, index) => ({
-          id: link.id || `link_${Date.now()}_${index}`,
-          title: link.title || '',
-          url: link.url || '',
-          description: link.description || '',
-          icon: link.icon || '',
-          color: link.color || '#8B5CF6',
-          type: link.type || 'link',
-          isVisible: link.isVisible !== undefined ? link.isVisible : true,
-          order: typeof link.order === 'number' ? link.order : index,
-          clicks: typeof link.clicks === 'number' ? link.clicks : 0
-        })) : [];
-
-        // Safely process products array
-        const safeProducts = Array.isArray(data.products) ? data.products.map((product, index) => ({
-          id: product.id || `product_${Date.now()}_${index}`,
-          title: product.title || '',
-          description: product.description || '',
-          price: product.price || '',
-          image: product.image || '',
-          url: product.url || '',
-          isVisible: product.isVisible !== undefined ? product.isVisible : true,
-          order: typeof product.order === 'number' ? product.order : index,
-          clicks: typeof product.clicks === 'number' ? product.clicks : 0
-        })) : [];
-        
-        // Convert Firestore timestamps to Date objects
-        const linkOrganizerData = {
-          ...data,
-          id: linkOrganizerId,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-          links: safeLinks,
-          products: safeProducts
-        } as LinkOrganizer;
-        
-        console.log('Processed link organizer data:', linkOrganizerData);
-        console.log('Links loaded:', safeLinks.length);
-        console.log('Products loaded:', safeProducts.length);
-        
-        setLinkOrganizer(linkOrganizerData);
-        // Lock username if editing existing organizer
-        if (linkOrganizerData.username) {
-          setUsernameLocked(true);
+      if (linkData.type === 'product') {
+        // Handle products
+        let newProducts: ProductItem[];
+        if (linkData.isNew) {
+          // Add new product
+          const newId = Date.now().toString();
+          newProducts = [...linkOrganizer.products, { 
+            ...linkData, 
+            id: newId,
+            title: linkData.title,
+            description: linkData.description || '',
+            price: (linkData as any).price || '',
+            image: (linkData as any).image || '',
+            url: linkData.url,
+            category: '',
+            isVisible: true,
+            order: linkOrganizer.products.length,
+            clicks: 0
+          } as ProductItem];
+        } else {
+          // Update existing product
+          newProducts = linkOrganizer.products.map(p => 
+            p.id === linkData.id 
+              ? { 
+                  ...p, 
+                  title: linkData.title,
+                  description: linkData.description || '',
+                  price: (linkData as any).price || '',
+                  image: (linkData as any).image || '',
+                  url: linkData.url
+                } 
+              : p
+          );
         }
+
+        const updatedLinkOrganizer = {
+          ...linkOrganizer,
+          products: newProducts,
+          updatedAt: new Date()
+        };
+
+        setLinkOrganizer(updatedLinkOrganizer);
+        
+        // Save to database immediately
+        await updateDoc(doc(db, 'linkOrganizers', linkOrganizer.id), updatedLinkOrganizer);
+        
+        toast.success('Product saved successfully!');
       } else {
-        console.error('Link organizer not found');
-        alert('Link organizer not found');
-        navigate('/link-organizer-builder');
+        // Handle regular links
+    let newLinks: LinkItem[];
+    if (linkData.isNew) {
+      // Add new link
+      const newId = Date.now().toString();
+      newLinks = [...linkOrganizer.links, { ...linkData, id: newId, icon: linkData.icon || 'Link' }];
+    } else {
+      // Update existing link
+      newLinks = linkOrganizer.links.map(l => l.id === linkData.id ? linkData : l);
+    }
+
+        const updatedLinkOrganizer = {
+          ...linkOrganizer,
+      links: newLinks,
+      updatedAt: new Date()
+        };
+
+        setLinkOrganizer(updatedLinkOrganizer);
+        
+        // Save to database immediately
+        await updateDoc(doc(db, 'linkOrganizers', linkOrganizer.id), updatedLinkOrganizer);
+        
+    toast.success('Link saved successfully!');
       }
+      
+      setEditingLink(null);
     } catch (error) {
-      console.error('Error fetching link organizer:', error);
-      console.error('Error details:', error);
-      alert(`Error loading link organizer data: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      navigate('/link-organizer-builder');
+      console.error('Error saving link:', error);
+      toast.error('Failed to save link. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Load data when component mounts or ID changes
-  useEffect(() => {
-    if (id && currentUser) {
-      fetchLinkOrganizer(id);
-    }
-  }, [id, currentUser, navigate]);
-
-  // Auto-save functionality to prevent data loss
-  useEffect(() => {
-    if (linkOrganizer.id && currentUser) {
-      const autoSaveTimeout = setTimeout(() => {
-        console.log('Auto-saving link organizer...');
-        handleAutoSave();
-      }, 30000); // Auto-save every 30 seconds
-
-      return () => clearTimeout(autoSaveTimeout);
-    }
-  }, [linkOrganizer, currentUser]);
-
-  const handleAutoSave = async () => {
-    if (!currentUser?.id || !linkOrganizer.id) return;
+  const handleDeleteLink = async (idToDelete: string) => {
+    if (!window.confirm("Are you sure you want to delete this link?")) return;
+    if (!linkOrganizer.id || !currentUser?.id) return;
 
     try {
-      // Ensure links and products arrays are properly formatted
-      const safeLinks = Array.isArray(linkOrganizer.links) ? linkOrganizer.links.map(link => ({
-        ...link,
-        id: link.id || Date.now().toString(),
-        isVisible: link.isVisible !== undefined ? link.isVisible : true,
-        order: typeof link.order === 'number' ? link.order : 0,
-        clicks: typeof link.clicks === 'number' ? link.clicks : 0
-      })) : [];
+      setSaving(true);
 
-      const safeProducts = Array.isArray(linkOrganizer.products) ? linkOrganizer.products.map(product => ({
-        ...product,
-        id: product.id || Date.now().toString(),
-        isVisible: product.isVisible !== undefined ? product.isVisible : true,
-        order: typeof product.order === 'number' ? product.order : 0,
-        clicks: typeof product.clicks === 'number' ? product.clicks : 0
-      })) : [];
-
-      const organizerData = {
+    const updatedLinks = linkOrganizer.links.filter(l => l.id !== idToDelete);
+    
+      const updatedLinkOrganizer = {
         ...linkOrganizer,
-        userId: currentUser.id,
-        links: safeLinks,
-        products: safeProducts,
-        updatedAt: new Date(),
-        createdAt: linkOrganizer.createdAt instanceof Date ? linkOrganizer.createdAt : new Date()
+      links: updatedLinks,
+      updatedAt: new Date()
       };
-
-      await updateDoc(doc(db, 'linkOrganizers', linkOrganizer.id), organizerData);
-      console.log('Auto-saved successfully');
+      
+      setLinkOrganizer(updatedLinkOrganizer);
+      
+      // Save to database immediately
+      await updateDoc(doc(db, 'linkOrganizers', linkOrganizer.id), updatedLinkOrganizer);
+    
+    toast.success('Link deleted successfully!');
     } catch (error) {
-      console.error('Auto-save failed:', error);
-      // Don't show alert for auto-save failures to avoid annoying the user
+      console.error('Error deleting link:', error);
+      toast.error('Failed to delete link. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const linkTypes = [
-    { 
-      value: 'link', 
-      label: 'Regular Link', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-        </svg>
-      )
-    },
-    { 
-      value: 'social', 
-      label: 'Social Media', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      )
-    },
-    { 
-      value: 'product', 
-      label: 'Product', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-        </svg>
-      )
-    },
-    { 
-      value: 'poll', 
-      label: 'Poll', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      )
-    },
-    { 
-      value: 'quiz', 
-      label: 'Quiz', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    },
-    { 
-      value: 'form', 
-      label: 'Form', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      )
-    },
-    { 
-      value: 'embed', 
-      label: 'Embed', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-        </svg>
-      )
-    }
-  ];
+  const handleReorder = async (id: string, direction: 'up' | 'down') => {
+    const index = linkOrganizer.links.findIndex(l => l.id === id);
+    if (index === -1) return;
+    if (!linkOrganizer.id || !currentUser?.id) return;
 
-  const colorPalettes = [
-    { name: 'Dark Mode', primary: '#1F2937', secondary: '#374151' },
-    { name: 'Purple Gradient', primary: '#8B5CF6', secondary: '#EC4899' },
-    { name: 'Blue Ocean', primary: '#3B82F6', secondary: '#06B6D4' },
-    { name: 'Green Forest', primary: '#10B981', secondary: '#059669' },
-    { name: 'Orange Sunset', primary: '#F59E0B', secondary: '#EF4444' },
-    { name: 'Pink Rose', primary: '#EC4899', secondary: '#F97316' }
-  ];
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= linkOrganizer.links.length) return;
 
-  const handleImageUpload = async (file: File, type: 'profile' | 'icon') => {
-    if (!file) return;
-
-    setUploadingImage(true);
     try {
-      // Check file size (max 2MB for better quality)
-      if (file.size > 2 * 1024 * 1024) {
-        alert('Image file size must be less than 2MB. Please use a smaller image.');
-        setUploadingImage(false);
-        return;
-      }
-      
-      // Convert to base64 for better persistence and cropping
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          if (type === 'profile') {
-            setLinkOrganizer(prev => ({ ...prev, profileImage: result }));
-            // Ask user if they want to crop
-            if (window.confirm('Would you like to crop the image? Click OK to crop, or Cancel to use the original image.')) {
-              cropProfileImage(result);
-            } else {
-              setUploadingImage(false);
-            }
-          } else {
-            setLinkForm(prev => ({ ...prev, icon: result }));
-            setUploadingImage(false);
-          }
-        }
+      setSaving(true);
+
+    const newLinks = [...linkOrganizer.links];
+    [newLinks[index], newLinks[newIndex]] = [newLinks[newIndex], newLinks[index]];
+
+      const updatedLinkOrganizer = {
+        ...linkOrganizer,
+      links: newLinks,
+      updatedAt: new Date()
       };
-      reader.onerror = () => {
-        console.error('Error reading file');
-        alert('Error reading image file. Please try again.');
-        setUploadingImage(false);
-      };
-      reader.readAsDataURL(file);
+
+      setLinkOrganizer(updatedLinkOrganizer);
       
+      // Save to database immediately
+      await updateDoc(doc(db, 'linkOrganizers', linkOrganizer.id), updatedLinkOrganizer);
     } catch (error) {
-      console.error('Error uploading image:', error);
-      alert('Error uploading image. Please try again.');
-      setUploadingImage(false);
+      console.error('Error reordering links:', error);
+      toast.error('Failed to reorder links. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const cropProfileImage = (imageUrl: string) => {
-    // Create a simple crop interface
-    const cropModal = document.createElement('div');
-    cropModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
-    
-    const cropContent = document.createElement('div');
-    cropContent.className = 'bg-white rounded-lg p-6 max-w-md w-full';
-    
-    cropContent.innerHTML = `
-      <div class="mb-4">
-        <h3 class="text-lg font-semibold mb-2">Crop Profile Image</h3>
-        <div class="relative w-48 h-48 mx-auto border-2 border-gray-300 rounded-lg overflow-hidden">
-          <img id="cropImage" src="${imageUrl}" class="w-full h-full object-cover" style="transform-origin: center; transform: scale(1);" />
-          <div class="absolute inset-0 border-2 border-blue-500 rounded-full pointer-events-none"></div>
-        </div>
-        <div class="mt-2 text-center">
-          <input type="range" id="scaleSlider" min="0.5" max="2" step="0.1" value="1" class="w-full" />
-          <p class="text-sm text-gray-600 mt-1">Adjust size</p>
-        </div>
-      </div>
-      <div class="flex gap-2 justify-end">
-        <button id="cancelCrop" class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-        <button id="applyCrop" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Apply Crop</button>
-      </div>
-    `;
-    
-    cropModal.appendChild(cropContent);
-    document.body.appendChild(cropModal);
-    
-    const img = cropContent.querySelector('#cropImage') as HTMLImageElement;
-    const scaleSlider = cropContent.querySelector('#scaleSlider') as HTMLInputElement;
-    const cancelBtn = cropContent.querySelector('#cancelCrop') as HTMLButtonElement;
-    const applyBtn = cropContent.querySelector('#applyCrop') as HTMLButtonElement;
-    
-    scaleSlider.addEventListener('input', (e) => {
-      const scale = (e.target as HTMLInputElement).value;
-      img.style.transform = `scale(${scale})`;
-    });
-    
-    cancelBtn.addEventListener('click', () => {
-      document.body.removeChild(cropModal);
-    });
-    
-    applyBtn.addEventListener('click', () => {
-      // Create a canvas to crop the image
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = 200; // Profile image size
-      canvas.height = 200;
-      
-      if (ctx) {
-        // Calculate the crop area (center 200x200 square)
-        const scale = parseFloat(scaleSlider.value);
-        const imgWidth = img.naturalWidth * scale;
-        const imgHeight = img.naturalHeight * scale;
-        
-        // Calculate the source rectangle (center crop)
-        const sourceX = Math.max(0, (imgWidth - 200) / 2);
-        const sourceY = Math.max(0, (imgHeight - 200) / 2);
-        const sourceWidth = Math.min(200, imgWidth);
-        const sourceHeight = Math.min(200, imgHeight);
-        
-        // Draw the cropped image
-        ctx.drawImage(
-          img, 
-          sourceX, sourceY, sourceWidth, sourceHeight,
-          0, 0, 200, 200
-        );
-        const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-        
-        // Update the profile image
-        setLinkOrganizer(prev => ({ ...prev, profileImage: croppedDataUrl }));
-        
-        document.body.removeChild(cropModal);
-      }
-    });
+  const handleAddLink = () => {
+    setEditingLink({
+      id: '',
+      title: 'New Link',
+      url: 'https://example.com',
+      icon: 'Link',
+      color: '#70d6ff',
+      type: 'link',
+      isVisible: true,
+      order: linkOrganizer.links.length,
+      isNew: true
+    } as LinkItem & { isNew: boolean });
   };
 
-  const checkUsernameAvailability = async (username: string, excludeId?: string): Promise<boolean> => {
-    if (!username) return false;
+  const handleFieldEdit = (field: string, currentValue: string) => {
+    setEditingField(field);
+    setTempValue(currentValue);
+  };
+
+  const handleFieldSave = async (field: string) => {
+    if (!linkOrganizer.id || !currentUser?.id) return;
     
     try {
-      const q = query(
-        collection(db, 'linkOrganizers'),
-        where('username', '==', username)
-      );
-      const querySnapshot = await getDocs(q);
+      setSaving(true);
       
-      // Check if any existing document has this username (excluding current document if updating)
-      return querySnapshot.docs.every(doc => doc.id === excludeId);
+      const updatedLinkOrganizer = {
+        ...linkOrganizer,
+      [field]: tempValue,
+      updatedAt: new Date()
+      };
+      
+      setLinkOrganizer(updatedLinkOrganizer);
+      
+      // Save to database immediately
+      await updateDoc(doc(db, 'linkOrganizers', linkOrganizer.id), updatedLinkOrganizer);
+      
+    setEditingField(null);
+    setTempValue('');
+    toast.success('Updated successfully!');
     } catch (error) {
-      console.error('Error checking username availability:', error);
-      return false;
+      console.error('Error saving field:', error);
+      toast.error('Failed to save changes. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleSave = async () => {
     if (!currentUser?.id) return;
-
-    // Validate username
-    if (!linkOrganizer.username || linkOrganizer.username.trim() === '') {
-      alert('Please enter a username for your link organizer.');
-      return;
-    }
-
-    // Check username format
-    const usernameRegex = /^[a-zA-Z0-9_-]+$/;
-    if (!usernameRegex.test(linkOrganizer.username)) {
-      alert('Username can only contain letters, numbers, underscores, and hyphens.');
-      return;
-    }
-
-    // Check username length
-    if (linkOrganizer.username.length < 3 || linkOrganizer.username.length > 20) {
-      alert('Username must be between 3 and 20 characters long.');
-      return;
-    }
-
-    // Check if this is a new link organizer and user is free tier
-    if (!linkOrganizer.id && currentUser.subscription === 'free') {
-      // Check how many link organizers the user already has
-      try {
-        const userOrganizersQuery = query(
-          collection(db, 'linkOrganizers'),
-          where('userId', '==', currentUser.id)
-        );
-        const userOrganizersSnapshot = await getDocs(userOrganizersQuery);
-        
-        if (userOrganizersSnapshot.size >= 1) {
-          alert('Free users can only create 1 link organizer. Upgrade to Premium to create multiple link organizers.');
-          return;
-        }
-      } catch (error) {
-        console.error('Error checking user link organizers:', error);
-        alert('Error checking your link organizer limit. Please try again.');
-        return;
-      }
-    }
-
-    // Check username availability
-    const isUsernameAvailable = await checkUsernameAvailability(linkOrganizer.username, linkOrganizer.id);
-    if (!isUsernameAvailable) {
-      alert('This username is already taken. Please choose a different username.');
-      return;
-    }
-
-    setLoading(true);
+    
+    setSaving(true);
     try {
-      // Ensure links and products arrays are properly formatted
-      const safeLinks = Array.isArray(linkOrganizer.links) ? linkOrganizer.links.map(link => ({
-        ...link,
-        id: link.id || Date.now().toString(),
-        isVisible: link.isVisible !== undefined ? link.isVisible : true,
-        order: typeof link.order === 'number' ? link.order : 0,
-        clicks: typeof link.clicks === 'number' ? link.clicks : 0
-      })) : [];
-
-      const safeProducts = Array.isArray(linkOrganizer.products) ? linkOrganizer.products.map(product => ({
-        ...product,
-        id: product.id || Date.now().toString(),
-        isVisible: product.isVisible !== undefined ? product.isVisible : true,
-        order: typeof product.order === 'number' ? product.order : 0,
-        clicks: typeof product.clicks === 'number' ? product.clicks : 0
-      })) : [];
-
-      const organizerData = {
-        ...linkOrganizer,
-        userId: currentUser.id,
-        links: safeLinks,
-        products: safeProducts,
-        updatedAt: new Date(),
-        // Ensure dates are properly serialized
-        createdAt: linkOrganizer.createdAt instanceof Date ? linkOrganizer.createdAt : new Date()
-      };
-
-      console.log('Saving link organizer data:', organizerData);
-      console.log('Links being saved:', safeLinks);
-      console.log('Products being saved:', safeProducts);
-
       if (linkOrganizer.id) {
         // Update existing
-        await updateDoc(doc(db, 'linkOrganizers', linkOrganizer.id), organizerData);
-        console.log('Updated existing link organizer:', linkOrganizer.id);
+        await updateDoc(doc(db, 'linkOrganizers', linkOrganizer.id), {
+          ...linkOrganizer,
+          updatedAt: new Date()
+        });
+        toast.success('Link organizer updated successfully!');
       } else {
         // Create new
-        const docRef = await addDoc(collection(db, 'linkOrganizers'), organizerData);
+        const docRef = await addDoc(collection(db, 'linkOrganizers'), {
+          ...linkOrganizer,
+          userId: currentUser.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
         setLinkOrganizer(prev => ({ ...prev, id: docRef.id }));
-        console.log('Created new link organizer:', docRef.id);
+        toast.success('Link organizer created successfully!');
       }
-      
-      alert('Link organizer saved successfully!');
     } catch (error) {
       console.error('Error saving link organizer:', error);
-      console.error('Error details:', error);
-      alert(`Error saving link organizer: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+      toast.error('Failed to save link organizer');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleAddLink = () => {
-    console.log('handleAddLink called with form data:', linkForm);
-    if (!linkForm.title || !linkForm.url) {
-      alert('Please fill in title and URL');
-      return;
+  // Load existing link organizer if editing
+  useEffect(() => {
+    if (id && currentUser) {
+      const fetchLinkOrganizer = async () => {
+        setLoading(true);
+        try {
+          const docRef = doc(db, 'linkOrganizers', id);
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setLinkOrganizer({
+              userId: data.userId || currentUser?.id || '',
+              title: data.title || 'My Link Page',
+              description: data.description || 'Welcome to my link page',
+              profileName: data.profileName || 'Your Name',
+              bio: data.bio || 'Add a short bio here...',
+              username: data.username || 'username',
+              isPublic: data.isPublic ?? true,
+              socialLinks: data.socialLinks || {},
+              backgroundStyle: data.backgroundStyle || {
+                type: 'gradient',
+                primaryColor: '#1F2937',
+                secondaryColor: '#374151'
+              },
+              links: data.links || [],
+              products: data.products || [],
+              theme: data.theme || {
+                primaryColor: '#1F2937',
+                secondaryColor: '#374151',
+                accentColor: '#8B5CF6',
+                fontFamily: 'Inter'
+              },
+              id: docSnap.id,
+              createdAt: data.createdAt?.toDate() || new Date(),
+              updatedAt: data.updatedAt?.toDate() || new Date()
+            });
+          } else {
+            toast.error('Link organizer not found');
+            navigate('/dashboard');
+          }
+        } catch (error) {
+          console.error('Error fetching link organizer:', error);
+          toast.error('Failed to load link organizer');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchLinkOrganizer();
     }
+  }, [id, currentUser, navigate]);
 
-    const newLink: LinkItem = {
-      id: editingLink?.id || Date.now().toString(),
-      title: linkForm.title,
-      url: linkForm.url,
-      description: linkForm.description,
-      icon: linkForm.icon,
-      color: linkForm.color,
-      type: linkForm.type,
-      isVisible: true,
-      order: linkOrganizer.links.length,
-      clicks: 0
-    };
-
-    if (editingLink) {
-      setLinkOrganizer(prev => {
-        const updatedLinks = prev.links.map(link => link.id === editingLink.id ? newLink : link);
-        console.log('Editing link - Updated links:', updatedLinks);
-        return {
-          ...prev,
-          links: updatedLinks
-        };
-      });
-    } else {
-      setLinkOrganizer(prev => {
-        const newLinks = [...prev.links, newLink];
-        console.log('Adding new link - All links:', newLinks);
-        return {
-          ...prev,
-          links: newLinks
-        };
-      });
-    }
-
-    setLinkForm({ title: '', url: '', description: '', icon: '', color: '#8B5CF6', type: 'link' });
-    setEditingLink(null);
-    setShowAddLink(false);
-  };
-
-  const handleAddProduct = () => {
-    if (!productForm.title || !productForm.url) {
-      alert('Please fill in title and URL');
-      return;
-    }
-
-    const newProduct: ProductItem = {
-      id: editingProduct?.id || Date.now().toString(),
-      title: productForm.title,
-      description: productForm.description,
-      price: productForm.price,
-      image: productForm.image,
-      url: productForm.url,
-      category: productForm.category,
-      isVisible: true,
-      order: linkOrganizer.products.length,
-      clicks: 0
-    };
-
-    if (editingProduct) {
-      setLinkOrganizer(prev => ({
-        ...prev,
-        products: prev.products.map(product => product.id === editingProduct.id ? newProduct : product)
-      }));
-    } else {
-      setLinkOrganizer(prev => ({
-        ...prev,
-        products: [...prev.products, newProduct]
-      }));
-    }
-
-    setProductForm({ title: '', description: '', price: '', image: '', url: '', category: '' });
-    setEditingProduct(null);
-    setShowAddProduct(false);
-  };
-
-  const handleDeleteLink = (linkId: string) => {
-    setLinkOrganizer(prev => ({
-      ...prev,
-      links: prev.links.filter(link => link.id !== linkId)
-    }));
-  };
-
-  const handleDeleteProduct = (productId: string) => {
-    setLinkOrganizer(prev => ({
-      ...prev,
-      products: prev.products.filter(product => product.id !== productId)
-    }));
-  };
-
-  const toggleLinkVisibility = (linkId: string) => {
-    setLinkOrganizer(prev => ({
-      ...prev,
-      links: prev.links.map(link => 
-        link.id === linkId ? { ...link, isVisible: !link.isVisible } : link
-      )
-    }));
-  };
-
-  const toggleProductVisibility = (productId: string) => {
-    setLinkOrganizer(prev => ({
-      ...prev,
-      products: prev.products.map(product => 
-        product.id === productId ? { ...product, isVisible: !product.isVisible } : product
-      )
-    }));
-  };
-
-  const PreviewComponent = () => {
-    const visibleLinks = Array.isArray(linkOrganizer?.links) ? linkOrganizer.links.filter(link => link.isVisible) : [];
-    const visibleProducts = Array.isArray(linkOrganizer?.products) ? linkOrganizer.products.filter(product => product.isVisible) : [];
-
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-        {/* iPhone-style container with rounded corners and shadow */}
-        <div className="max-w-sm mx-auto bg-white min-h-screen relative overflow-hidden rounded-t-3xl shadow-2xl">
-          {/* Status bar area */}
-          <div className="h-6 bg-black rounded-t-3xl flex items-center justify-center">
-            <div className="w-16 h-1 bg-white rounded-full opacity-60"></div>
-          </div>
-
-          {/* Header with profile */}
-          <div 
-            className="relative overflow-hidden"
-            style={{
-              background: linkOrganizer.backgroundStyle?.type === 'gradient' 
-                ? `linear-gradient(135deg, ${linkOrganizer.backgroundStyle.primaryColor}, ${linkOrganizer.backgroundStyle.secondaryColor})`
-                : linkOrganizer.backgroundStyle?.primaryColor || '#8B5CF6'
-            }}
-          >
-            <div className="relative p-8 pb-12">
-              {/* Profile Section */}
-              <div className="flex flex-col items-center text-center">
-                {linkOrganizer.profileImage ? (
-                  <div className="relative mb-6">
-                    <img 
-                      src={linkOrganizer.profileImage} 
-                      alt="Profile" 
-                      className="w-28 h-28 rounded-full shadow-2xl object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="w-28 h-28 rounded-full bg-white bg-opacity-20 border-4 border-white border-opacity-30 flex items-center justify-center mb-6 shadow-2xl">
-                    <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                )}
-                
-                <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">
-                  {linkOrganizer.profileName}
-                </h1>
-                
-                {/* Bio with word limit */}
-                <p className="text-white text-opacity-90 text-sm leading-relaxed max-w-xs mb-6 line-clamp-3">
-                  {linkOrganizer.bio && linkOrganizer.bio.length > 120 
-                    ? `${linkOrganizer.bio.substring(0, 120)}...` 
-                    : linkOrganizer.bio}
-                </p>
-
-                {/* Social Links - Smaller and below description */}
-                {linkOrganizer.socialLinks && 
-                 typeof linkOrganizer.socialLinks === 'object' && 
-                 Object.values(linkOrganizer.socialLinks).some(link => link) && (
-                  <div className="mb-4">
-                    <SocialMediaIcons 
-                      socialLinks={linkOrganizer.socialLinks}
-                      size="sm"
-                      className="opacity-90"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Tab Navigation */}
-          <div className="bg-white border-b border-gray-100">
-            <div className="flex">
-              <button className="flex-1 py-4 px-6 text-sm font-medium text-blue-600 relative">
-                <div className="flex items-center justify-center space-x-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                  <span>Links</span>
-                  {visibleLinks.length > 0 && (
-                    <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-full">
-                      {visibleLinks.length}
-                    </span>
-                  )}
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
-              </button>
-              
-              <button className="flex-1 py-4 px-6 text-sm font-medium text-gray-500 hover:text-gray-700 relative">
-                <div className="flex items-center justify-center space-x-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                  <span>Shop</span>
-                  {visibleProducts.length > 0 && (
-                    <span className="bg-blue-100 text-blue-600 text-xs px-2 py-0.5 rounded-full">
-                      {visibleProducts.length}
-                    </span>
-                  )}
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Content Area */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-6">
-              {visibleLinks.length === 0 ? (
-                <div className="text-center py-16">
-                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                      </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No links yet</h3>
-                  <p className="text-gray-500 text-sm">Links will appear here when added</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {visibleLinks
-                    .sort((a, b) => a.order - b.order)
-                    .map((link, index) => (
-                      <div key={link.id}>
-                        <AccordionLink
-                          link={link}
-                          theme={linkOrganizer.theme}
-                          className="w-full"
-                        />
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          </div>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-300">Loading...</p>
         </div>
       </div>
     );
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-4">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-4 z-50 mx-4 rounded-lg shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-3 sm:py-4 gap-3 sm:gap-0">
-            <div className="flex items-center space-x-3 sm:space-x-4">
-              <button
-                onClick={() => window.history.back()}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div>
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900">Link Organizer Builder</h1>
-                <p className="text-xs sm:text-sm text-gray-600">Create beautiful link pages</p>
-              </div>
+    <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col items-center p-4 sm:p-8">
+      <style>
+        {`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass-card {
+          background-color: rgba(31, 31, 31, 0.7);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          box-shadow: 0 4px 60px rgba(0, 0, 0, 0.5);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        `}
+      </style>
+
+      {/* Header with controls */}
+      <div className="w-full max-w-lg mb-6">
+        <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => window.history.back()}
+              className="p-2 rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-lg font-bold text-white">Link Organizer Builder</h1>
+              <p className="text-xs text-gray-400">Create beautiful link pages</p>
             </div>
-            
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className={`px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                isEditing 
+                  ? 'bg-red-600 text-white hover:bg-red-700' 
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              {isEditing ? 'Exit Edit' : 'Edit Mode'}
+            </button>
+            {linkOrganizer.id && (
               <button
-                onClick={() => setPreviewMode(!previewMode)}
-                className="px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                onClick={() => {
+                  const linkUrl = linkOrganizer.username 
+                    ? `${getBaseUrl()}/${linkOrganizer.username}`
+                    : `${getBaseUrl()}/link/${linkOrganizer.id}`;
+                  navigator.clipboard.writeText(linkUrl);
+                  toast.success('Link copied to clipboard!');
+                }}
+                className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
               >
-                {previewMode ? 'Edit' : 'Preview'}
+                Copy Link
               </button>
-              {linkOrganizer.id && (
+            )}
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <main className="w-full max-w-lg">
+        {/* Profile Header with Glass Morphism */}
+        <div className="glass-card rounded-[36px] p-6 mb-8 text-center transition-all duration-300">
+          {linkOrganizer.profileImage ? (
+            <div className="relative group">
+            <img
+              src={linkOrganizer.profileImage}
+              alt={`${linkOrganizer.profileName}'s Profile`}
+              className="w-28 h-28 rounded-full mx-auto mb-4 border-4 border-gray-700 object-cover shadow-xl"
+            />
+              {isEditing && (
                 <button
-                  onClick={() => {
-                    // Use username-based URL if available, otherwise fall back to ID-based
-                    const linkUrl = linkOrganizer.username 
-                      ? `${getBaseUrl()}/${linkOrganizer.username}`
-                      : `${getBaseUrl()}/link/${linkOrganizer.id}`;
-                    navigator.clipboard.writeText(linkUrl);
-                    toast.success('Link copied to clipboard!');
-                  }}
-                  className="px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                  onClick={() => document.getElementById('profile-image-upload')?.click()}
+                  className="absolute bottom-2 right-2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
                 >
-                  Copy Link
+                  <Camera size={16} className="text-white" />
                 </button>
               )}
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm sm:text-base"
-              >
-                {loading ? 'Saving...' : 'Save'}
-              </button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-4">
-        {previewMode ? (
-          <div className="flex justify-center">
-            <PreviewComponent />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Builder Panel */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Tabs */}
-              <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-                {[
-                  { 
-                    id: 'design', 
-                    label: 'Design', 
-                    icon: (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
-                      </svg>
-                    )
-                  },
-                  { 
-                    id: 'links', 
-                    label: 'Links', 
-                    icon: (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                      </svg>
-                    )
-                  },
-                  { 
-                    id: 'shop', 
-                    label: 'Shop', 
-                    icon: (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                      </svg>
-                    )
-                  }
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex-1 min-h-[44px] py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
-                      activeTab === tab.id
-                        ? 'bg-white text-blue-600 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <div className={`${activeTab === tab.id ? 'text-blue-600' : 'text-gray-600'}`}>
-                      {tab.icon}
-                    </div>
-                    <span>{tab.label}</span>
-                  </button>
-                ))}
+          ) : (
+            <div className="relative group">
+            <div className="w-28 h-28 rounded-full bg-gray-700 mx-auto mb-4 border-4 border-gray-600 flex items-center justify-center shadow-xl">
+              <User size={32} className="text-gray-400" />
               </div>
-
-              {/* Tab Content */}
-              <AnimatePresence mode="wait">
-                {activeTab === 'design' && (
-                  <motion.div
-                    key="design"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200"
-                  >
-                    <h2 className="text-xl font-bold text-gray-900 mb-6">Design Settings</h2>
-                    
-                    {/* Profile Section */}
-                    <div className="space-y-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-gray-500">{getBaseUrl().replace('https://', '')}/</span>
-                          <div className="flex-1 relative">
-                            <input
-                              type="text"
-                              value={linkOrganizer.username || ''}
-                              onChange={(e) => {
-                                const newUsername = e.target.value;
-                                setLinkOrganizer(prev => ({ ...prev, username: newUsername }));
-                                
-                                // Clear existing timeout
-                                if (usernameCheckTimeout) {
-                                  clearTimeout(usernameCheckTimeout);
-                                }
-                                
-                                // Set new timeout for debounced checking
-                                const timeout = setTimeout(() => {
-                                  checkUsernameLive(newUsername);
-                                }, 500);
-                                setUsernameCheckTimeout(timeout);
-                                
-                                // Reset lock if username changes
-                                if (usernameLocked && newUsername !== linkOrganizer.username) {
-                                  setUsernameLocked(false);
-                                }
-                              }}
-                              disabled={usernameLocked}
-                              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:border-transparent pr-12 ${
-                                usernameStatus === 'available' 
-                                  ? 'border-green-500 focus:ring-green-500 bg-green-50' 
-                                  : usernameStatus === 'taken' || usernameStatus === 'invalid'
-                                  ? 'border-red-500 focus:ring-red-500 bg-red-50'
-                                  : 'border-gray-300 focus:ring-blue-500'
-                              } ${usernameLocked ? 'bg-gray-100' : ''}`}
-                              placeholder="yourusername"
-                            />
-                            
-                            {/* Status indicator */}
-                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                              {usernameStatus === 'checking' && (
-                                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                              )}
-                              {usernameStatus === 'available' && !usernameLocked && (
-                                <button
-                                  onClick={() => setUsernameLocked(true)}
-                                  className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white hover:bg-green-600 transition-colors"
-                                  title="Lock this username"
-                                >
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                </button>
-                              )}
-                              {usernameStatus === 'available' && usernameLocked && (
-                                <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white" title="Username locked">
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                  </svg>
-                                </div>
-                              )}
-                              {usernameStatus === 'taken' && (
-                                <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white" title="Username taken">
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </div>
-                              )}
-                              {usernameStatus === 'invalid' && (
-                                <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white" title="Invalid username">
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                  </svg>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Unlock button for locked usernames */}
-                          {usernameLocked && (
-                            <button
-                              onClick={() => {
-                                setUsernameLocked(false);
-                                setUsernameStatus(null);
-                              }}
-                              className="px-3 py-2 text-sm text-blue-600 hover:text-blue-800 transition-colors"
-                              title="Unlock username to change"
-                            >
-                              Edit
-                            </button>
-                          )}
-                        </div>
-                        
-                        {/* Status messages */}
-                        {usernameStatus === 'available' && !usernameLocked && (
-                          <p className="text-xs text-green-600 mt-1">✅ Username is available! Click the checkmark to lock it.</p>
-                        )}
-                        {usernameStatus === 'taken' && (
-                          <p className="text-xs text-red-600 mt-1">❌ Username is already taken. Please choose a different one.</p>
-                        )}
-                        {usernameStatus === 'invalid' && (
-                          <p className="text-xs text-red-600 mt-1">❌ Username can only contain letters, numbers, underscores, and hyphens.</p>
-                        )}
-                        {usernameLocked && (
-                          <p className="text-xs text-green-600 mt-1">🔒 Username locked. Your link: {getBaseUrl().replace('https://', '')}/{linkOrganizer.username}</p>
-                        )}
-                        {!usernameStatus && !usernameLocked && (
-                          <p className="text-xs text-gray-500 mt-1">Type a username to check availability</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Profile Name</label>
-                        <input
-                          type="text"
-                          value={linkOrganizer.profileName || ''}
-                          onChange={(e) => setLinkOrganizer(prev => ({ ...prev, profileName: e.target.value }))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="Enter your name"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Bio</label>
-                        <textarea
-                          value={linkOrganizer.bio || ''}
-                          onChange={(e) => setLinkOrganizer(prev => ({ ...prev, bio: e.target.value }))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          rows={3}
-                          placeholder="Add a short bio..."
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Profile Image</label>
-                        <div className="flex items-center space-x-4">
-                          {linkOrganizer.profileImage && (
-                            <img 
-                              src={linkOrganizer.profileImage} 
-                              alt="Profile" 
-                              className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
-                            />
-                          )}
-                          <div className="flex-1">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                console.log('File input changed:', e.target.files);
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  console.log('File selected:', file.name, file.size, file.type);
-                                  handleImageUpload(file, 'profile');
-                                  // Reset the input so the same file can be selected again
-                                  e.target.value = '';
-                                } else {
-                                  console.log('No file selected');
-                                }
-                              }}
-                              className="hidden"
-                              id="profile-upload"
-                            />
-                            <label
-                              htmlFor="profile-upload"
-                              className="cursor-pointer inline-flex items-center px-4 py-2 border-2 border-dashed border-blue-300 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-400 transition-colors"
-                            >
-                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                              </svg>
-                              {uploadingImage ? 'Uploading...' : 'Choose Image File'}
-                            </label>
-                          </div>
-                        </div>
-                        <div className="mt-2">
-                          <input
-                            type="url"
-                            value={linkOrganizer.profileImage || ''}
-                            onChange={(e) => setLinkOrganizer(prev => ({ ...prev, profileImage: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                            placeholder="Or paste image URL here"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Color Themes */}
-                    <div className="mt-8">
-                      <label className="block text-sm font-medium text-gray-700 mb-4">Color Theme</label>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {colorPalettes.map((palette) => (
-                          <button
-                            key={palette.name}
-                            onClick={() => setLinkOrganizer(prev => ({
-                              ...prev,
-                              theme: {
-                                ...prev.theme,
-                                primaryColor: palette.primary,
-                                secondaryColor: palette.secondary
-                              },
-                              backgroundStyle: {
-                                type: prev.backgroundStyle?.type || 'gradient',
-                                ...prev.backgroundStyle,
-                                primaryColor: palette.primary,
-                                secondaryColor: palette.secondary
-                              }
-                            }))}
-                            className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-300 transition-colors"
-                          >
-                            <div className="flex items-center space-x-3 mb-2">
-                              <div 
-                                className="w-6 h-6 rounded-full"
-                                style={{ backgroundColor: palette.primary }}
-                              ></div>
-                              <div 
-                                className="w-6 h-6 rounded-full"
-                                style={{ backgroundColor: palette.secondary }}
-                              ></div>
-                            </div>
-                            <div className="text-sm font-medium text-gray-900">{palette.name}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Social Links */}
-                    <div className="mt-8">
-                      <label className="block text-sm font-medium text-gray-700 mb-4">Social Media Links</label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {[
-                          { 
-                            key: 'instagram', 
-                            label: 'Instagram', 
-                            placeholder: 'https://instagram.com/username',
-                            icon: (
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                              </svg>
-                            ),
-                            color: 'bg-gradient-to-r from-purple-500 to-pink-500'
-                          },
-                          { 
-                            key: 'twitter', 
-                            label: 'Twitter', 
-                            placeholder: 'https://twitter.com/username',
-                            icon: (
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
-                              </svg>
-                            ),
-                            color: 'bg-blue-400'
-                          },
-                          { 
-                            key: 'linkedin', 
-                            label: 'LinkedIn', 
-                            placeholder: 'https://linkedin.com/in/username',
-                            icon: (
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                              </svg>
-                            ),
-                            color: 'bg-blue-600'
-                          },
-                          { 
-                            key: 'youtube', 
-                            label: 'YouTube', 
-                            placeholder: 'https://youtube.com/@username',
-                            icon: (
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                              </svg>
-                            ),
-                            color: 'bg-red-600'
-                          },
-                          { 
-                            key: 'tiktok', 
-                            label: 'TikTok', 
-                            placeholder: 'https://tiktok.com/@username',
-                            icon: (
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-.88-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
-                              </svg>
-                            ),
-                            color: 'bg-black'
-                          }
-                        ].map((social) => (
-                          <div key={social.key} className="relative">
-                            <div className="flex items-center space-x-3 mb-2">
-                              <div className={`w-8 h-8 ${social.color} rounded-lg flex items-center justify-center text-white`}>
-                                {social.icon}
-                              </div>
-                              <label className="block text-sm font-medium text-gray-700">{social.label}</label>
-                            </div>
-                            <input
-                              type="url"
-                              value={linkOrganizer.socialLinks?.[social.key as keyof typeof linkOrganizer.socialLinks] || ''}
-                              onChange={(e) => setLinkOrganizer(prev => ({
-                                ...prev,
-                                socialLinks: {
-                                  ...prev.socialLinks,
-                                  [social.key]: e.target.value
-                                }
-                              }))}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              placeholder={social.placeholder}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeTab === 'links' && (
-                  <motion.div
-                    key="links"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200"
-                  >
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-xl font-bold text-gray-900">Links ({linkOrganizer.links.length})</h2>
-                      <button
-                        onClick={() => {
-                          setEditingLink(null);
-                          setLinkForm({ title: '', url: '', description: '', icon: '', color: '#8B5CF6', type: 'link' });
-                          setShowAddLink(true);
-                        }}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        + Add Link
-                      </button>
-                    </div>
-
-                    <div className="space-y-4">
-                      {linkOrganizer.links.map((link) => (
-                        <div key={link.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                          <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="checkbox"
-                                checked={link.isVisible}
-                                onChange={() => toggleLinkVisibility(link.id)}
-                                className="rounded border-gray-300"
-                              />
-                              <span className={`w-3 h-3 rounded-full`} style={{ backgroundColor: link.color }}></span>
-                            </div>
-                            <div>
-                              <div className="font-medium">{link.title}</div>
-                              <div className="text-sm text-gray-600">{link.url}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => {
-                                setEditingLink(link);
-                                setLinkForm({
-                                  title: link.title,
-                                  url: link.url,
-                                  description: link.description || '',
-                                  icon: link.icon || '',
-                                  color: link.color || '#8B5CF6',
-                                  type: link.type
-                                });
-                                setShowAddLink(true);
-                              }}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              onClick={() => handleDeleteLink(link.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeTab === 'shop' && (
-                  <motion.div
-                    key="shop"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200"
-                  >
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-xl font-bold text-gray-900">Shop Products ({linkOrganizer.products.length})</h2>
-                      <button
-                        onClick={() => {
-                          setEditingProduct(null);
-                          setProductForm({ title: '', description: '', price: '', image: '', url: '', category: '' });
-                          setShowAddProduct(true);
-                        }}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        + Add Product
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {linkOrganizer.products.map((product) => (
-                        <div key={product.id} className="border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <input
-                              type="checkbox"
-                              checked={product.isVisible}
-                              onChange={() => toggleProductVisibility(product.id)}
-                              className="rounded border-gray-300"
-                            />
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={() => {
-                                  setEditingProduct(product);
-                                  setProductForm({
-                                    title: product.title,
-                                    description: product.description,
-                                    price: product.price || '',
-                                    image: product.image || '',
-                                    url: product.url,
-                                    category: product.category || ''
-                                  });
-                                  setShowAddProduct(true);
-                                }}
-                                className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                              >
-                                ✏️
-                              </button>
-                              <button
-                                onClick={() => handleDeleteProduct(product.id)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded"
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          </div>
-                          
-                          {product.image && (
-                            <img 
-                              src={product.image} 
-                              alt={product.title}
-                              className="w-full h-32 object-cover rounded-lg mb-3"
-                            />
-                          )}
-                          
-                          <h3 className="font-semibold text-gray-900 mb-1">{product.title}</h3>
-                          <p className="text-sm text-gray-600 mb-2">{product.description}</p>
-                          {product.price && (
-                            <div className="text-lg font-bold text-green-600">{product.price}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-
-              </AnimatePresence>
-            </div>
-
-            {/* Preview Panel */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-24">
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Mobile Preview</h3>
-                  <PreviewComponent />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Add Link Modal */}
-      {showAddLink && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">
-                  {editingLink ? 'Edit Link' : 'Add New Link'}
-                </h3>
+              {isEditing && (
                 <button
-                  onClick={() => setShowAddLink(false)}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                  onClick={() => document.getElementById('profile-image-upload')?.click()}
+                  className="absolute bottom-2 right-2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <Camera size={16} className="text-white" />
                 </button>
+              )}
+            </div>
+          )}
+          
+          {/* Hidden file input for profile image */}
+          <input
+            id="profile-image-upload"
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  setLinkOrganizer(prev => ({
+                    ...prev,
+                    profileImage: event.target?.result as string,
+                    updatedAt: new Date()
+                  }));
+                  toast.success('Profile image updated!');
+                };
+                reader.readAsDataURL(file);
+              }
+            }}
+            className="hidden"
+          />
+          
+          {/* Editable Profile Name */}
+          {editingField === 'profileName' ? (
+            <div className="mb-4">
+              <input
+                type="text"
+                value={tempValue}
+                onChange={(e) => setTempValue(e.target.value)}
+                onBlur={() => handleFieldSave('profileName')}
+                onKeyPress={(e) => e.key === 'Enter' && handleFieldSave('profileName')}
+                className="text-4xl font-extrabold mb-1 tracking-tight text-white bg-transparent border-none outline-none text-center w-full"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <h1 
+              className="text-4xl font-extrabold mb-1 tracking-tight text-white cursor-pointer hover:bg-gray-800 rounded-lg p-2 transition-colors"
+              onClick={() => handleFieldEdit('profileName', linkOrganizer.profileName || '')}
+            >
+              {linkOrganizer.profileName}
+            </h1>
+          )}
+          
+          {/* Editable Bio */}
+          {editingField === 'bio' ? (
+            <div className="mb-4">
+              <textarea
+                value={tempValue}
+                onChange={(e) => setTempValue(e.target.value)}
+                onBlur={() => handleFieldSave('bio')}
+                onKeyPress={(e) => e.key === 'Enter' && handleFieldSave('bio')}
+                className="text-gray-400 text-lg font-light max-w-xs mx-auto bg-transparent border-none outline-none text-center w-full resize-none"
+                rows={3}
+                maxLength={98}
+                autoFocus
+              />
+              <div className="text-xs text-gray-500 mt-1 text-center">
+                {tempValue.length}/98 characters
               </div>
-              
-              <div className="space-y-4">
+            </div>
+          ) : (
+            <p 
+              className="text-gray-400 text-lg font-light max-w-xs mx-auto mb-4 cursor-pointer hover:bg-gray-800 rounded-lg p-2 transition-colors"
+              onClick={() => handleFieldEdit('bio', linkOrganizer.bio || '')}
+            >
+              {linkOrganizer.bio}
+            </p>
+          )}
+
+          {/* Social Links */}
+          <div className="mb-4">
+          {linkOrganizer.socialLinks && 
+           typeof linkOrganizer.socialLinks === 'object' && 
+           Object.values(linkOrganizer.socialLinks).some(link => link) && (
+              <div className="mb-2">
+              <SocialMediaIcons 
+                socialLinks={linkOrganizer.socialLinks}
+                size="sm"
+                className="opacity-90"
+              />
+            </div>
+          )}
+            
+            {isEditing && (
+              <button
+                onClick={() => setEditingField(editingField === 'socialLinks' ? null : 'socialLinks')}
+                className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                {editingField === 'socialLinks' ? 'Done' : 'Edit Social Links'}
+              </button>
+            )}
+            
+            {editingField === 'socialLinks' && (
+              <div className="mt-3 space-y-3 p-4 bg-gray-800 rounded-lg">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Link Type</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {linkTypes.map((type) => (
-                      <button
-                        key={type.value}
-                        onClick={() => setLinkForm(prev => ({ ...prev, type: type.value as LinkItem['type'] }))}
-                        className={`p-3 rounded-lg border-2 transition-all flex items-center space-x-2 ${
-                          linkForm.type === type.value
-                            ? 'border-blue-500 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                        }`}
-                      >
-                        <div className={`${linkForm.type === type.value ? 'text-blue-600' : 'text-gray-500'}`}>
-                          {type.icon}
-                        </div>
-                        <span className="text-sm font-medium">{type.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
-                  <input
-                    type="text"
-                    value={linkForm.title}
-                    onChange={(e) => setLinkForm(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter link title"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">URL</label>
+                  <label className="block text-xs text-gray-400 mb-1">Instagram</label>
                   <input
                     type="url"
-                    value={linkForm.url}
-                    onChange={(e) => setLinkForm(prev => ({ ...prev, url: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="https://example.com"
+                    placeholder="https://instagram.com/username"
+                    value={linkOrganizer.socialLinks?.instagram || ''}
+                    onChange={(e) => {
+                      setLinkOrganizer(prev => ({
+                        ...prev,
+                        socialLinks: {
+                          ...prev.socialLinks,
+                          instagram: e.target.value
+                        },
+                        updatedAt: new Date()
+                      }));
+                    }}
+                    className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white text-sm"
                   />
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description (Optional)</label>
+                  <label className="block text-xs text-gray-400 mb-1">Twitter</label>
                   <input
-                    type="text"
-                    value={linkForm.description}
-                    onChange={(e) => setLinkForm(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Short description"
+                    type="url"
+                    placeholder="https://twitter.com/username"
+                    value={linkOrganizer.socialLinks?.twitter || ''}
+                    onChange={(e) => {
+                      setLinkOrganizer(prev => ({
+                        ...prev,
+                        socialLinks: {
+                          ...prev.socialLinks,
+                          twitter: e.target.value
+                        },
+                        updatedAt: new Date()
+                      }));
+                    }}
+                    className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white text-sm"
                   />
                 </div>
-                
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Icon (Optional)</label>
-                  <div className="flex items-center space-x-4">
-                    {linkForm.icon && (
-                      <div className="w-12 h-12 rounded-lg overflow-hidden border-2 border-gray-200 flex items-center justify-center">
-                        {linkForm.icon.startsWith('http') ? (
-                          <img src={linkForm.icon} alt="Icon" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-2xl">{linkForm.icon}</span>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageUpload(file, 'icon');
-                        }}
-                        className="hidden"
-                        id="icon-upload"
-                      />
-                      <label
-                        htmlFor="icon-upload"
-                        className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-                      >
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                        Upload Icon
-                      </label>
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <input
-                      type="text"
-                      value={linkForm.icon}
-                      onChange={(e) => setLinkForm(prev => ({ ...prev, icon: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      placeholder="🔗 or any emoji, or paste image URL"
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
+                  <label className="block text-xs text-gray-400 mb-1">LinkedIn</label>
                   <input
-                    type="color"
-                    value={linkForm.color}
-                    onChange={(e) => setLinkForm(prev => ({ ...prev, color: e.target.value }))}
-                    className="w-full h-12 border border-gray-300 rounded-lg"
+                    type="url"
+                    placeholder="https://linkedin.com/in/username"
+                    value={linkOrganizer.socialLinks?.linkedin || ''}
+                    onChange={(e) => {
+                      setLinkOrganizer(prev => ({
+                        ...prev,
+                        socialLinks: {
+                          ...prev.socialLinks,
+                          linkedin: e.target.value
+                        },
+                        updatedAt: new Date()
+                      }));
+                    }}
+                    className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">YouTube</label>
+                  <input
+                    type="url"
+                    placeholder="https://youtube.com/@username"
+                    value={linkOrganizer.socialLinks?.youtube || ''}
+                    onChange={(e) => {
+                      setLinkOrganizer(prev => ({
+                        ...prev,
+                        socialLinks: {
+                          ...prev.socialLinks,
+                          youtube: e.target.value
+                        },
+                        updatedAt: new Date()
+                      }));
+                    }}
+                    className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">TikTok</label>
+                  <input
+                    type="url"
+                    placeholder="https://tiktok.com/@username"
+                    value={linkOrganizer.socialLinks?.tiktok || ''}
+                    onChange={(e) => {
+                      setLinkOrganizer(prev => ({
+                        ...prev,
+                        socialLinks: {
+                          ...prev.socialLinks,
+                          tiktok: e.target.value
+                        },
+                        updatedAt: new Date()
+                      }));
+                    }}
+                    className="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white text-sm"
                   />
                 </div>
               </div>
-              
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setShowAddLink(false)}
-                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Cancel
-                </button>
+            )}
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="glass-card rounded-2xl p-2 mb-6">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('links')}
+              className={`flex-1 py-3 px-4 text-sm font-medium transition-all duration-300 rounded-xl ${
+                activeTab === 'links'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <Link size={16} />
+                <span>Links</span>
+                {linkOrganizer.links.length > 0 && (
+                  <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    {linkOrganizer.links.length}
+                  </span>
+                )}
+              </div>
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('shop')}
+              className={`flex-1 py-3 px-4 text-sm font-medium transition-all duration-300 rounded-xl ${
+                activeTab === 'shop'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              <div className="flex items-center justify-center space-x-2">
+                <Camera size={16} />
+                <span>Shop</span>
+                {linkOrganizer.products.length > 0 && (
+                  <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    {linkOrganizer.products.length}
+                  </span>
+                )}
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === 'links' && (
+            <div className="space-y-4">
+              {linkOrganizer.links.length === 0 ? (
+                <div className="glass-card rounded-2xl p-8 text-center">
+                  <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Link size={24} className="text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-2">No links yet</h3>
+                  <p className="text-gray-400 text-sm">Click Edit Mode to start adding links</p>
+                </div>
+              ) : (
+                linkOrganizer.links.map(link => (
+                  <LinkModule
+                    key={link.id}
+                    link={link}
+                    isEditing={isEditing}
+                    onDelete={handleDeleteLink}
+                    onEditClick={setEditingLink}
+                    onReorder={handleReorder}
+                  />
+                ))
+              )}
+
+              {isEditing && (
                 <button
                   onClick={handleAddLink}
-                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="w-full py-4 rounded-3xl bg-gray-800 text-blue-400 hover:bg-gray-700 transition-colors flex items-center justify-center space-x-2 font-semibold text-lg border-2 border-dashed border-gray-600"
                 >
-                  {editingLink ? 'Update' : 'Add'} Link
+                  <Plus size={24} />
+                  <span>Add New Link Module</span>
                 </button>
-              </div>
+              )}
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Add Product Modal */}
-      {showAddProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">
-                  {editingProduct ? 'Edit Product' : 'Add New Product'}
-                </h3>
-                <button
-                  onClick={() => setShowAddProduct(false)}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Title</label>
-                  <input
-                    type="text"
-                    value={productForm.title}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter product title"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                  <textarea
-                    value={productForm.description}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={3}
-                    placeholder="Product description"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Price (Optional)</label>
-                  <input
-                    type="text"
-                    value={productForm.price}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, price: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="$29.99"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Image</label>
-                  <div className="space-y-3">
-                    {/* Image Upload */}
-                    <div className="flex items-center space-x-4">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            // Check file size (500KB = 500 * 1024 bytes)
-                            if (file.size > 500 * 1024) {
-                              alert('Image size must be less than 500KB. Please choose a smaller image.');
-                              return;
-                            }
-                            
-                            // Create object URL for preview
-                            const imageUrl = URL.createObjectURL(file);
-                            setProductForm(prev => ({ ...prev, image: imageUrl }));
-                          }
-                        }}
-                        className="hidden"
-                        id="product-image-upload"
-                      />
-                      <label
-                        htmlFor="product-image-upload"
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer text-sm"
-                      >
-                        Upload Image
-                      </label>
-                      <span className="text-xs text-gray-500">Max 500KB</span>
-                    </div>
-                    
-                    {/* Image Preview */}
-                    {productForm.image && (
-                      <div className="relative">
-                        <img
-                          src={productForm.image}
-                          alt="Product preview"
-                          className="w-full h-32 object-cover rounded-lg border"
-                        />
-                        <button
-                          onClick={() => setProductForm(prev => ({ ...prev, image: '' }))}
-                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    )}
-                    
-                    {/* Or URL Input */}
-                    <div className="text-center text-gray-500 text-sm">OR</div>
-                    <input
-                      type="url"
-                      value={productForm.image.startsWith('blob:') ? '' : productForm.image}
-                      onChange={(e) => {
-                        if (!e.target.value.startsWith('blob:')) {
-                          setProductForm(prev => ({ ...prev, image: e.target.value }));
-                        }
-                      }}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="https://example.com/image.jpg"
-                    />
+          {activeTab === 'shop' && (
+            <div className="space-y-4">
+              {linkOrganizer.products.length === 0 ? (
+                <div className="glass-card rounded-2xl p-8 text-center">
+                  <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Camera size={24} className="text-gray-400" />
                   </div>
+                  <h3 className="text-lg font-semibold text-white mb-2">No products yet</h3>
+                  <p className="text-gray-400 text-sm mb-4">Add products to showcase in your shop</p>
+                  {isEditing && (
+                    <button
+                      onClick={() => setEditingLink({ id: '', title: '', description: '', price: '', image: '', url: '', category: '', isVisible: true, order: 0, type: 'product', isNew: true } as LinkItem & { isNew: boolean })}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Add Product
+                    </button>
+                  )}
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Product URL</label>
-                  <input
-                    type="url"
-                    value={productForm.url}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, url: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="https://example.com/product"
-                  />
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {linkOrganizer.products.map((product, index) => (
+                    <div
+                      key={product.id}
+                      className={`glass-card rounded-2xl overflow-hidden transition-all duration-300 group ${
+                        isEditing ? 'opacity-80 border-2 border-dashed border-gray-600 hover:border-gray-500' : 'hover:scale-105'
+                      }`}
+                    >
+                      {/* Product Image */}
+                      <div className="aspect-square relative overflow-hidden">
+                        {product.image ? (
+                          <img 
+                            src={product.image} 
+                            alt={product.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+                            <Camera size={24} className="text-gray-400" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-300"></div>
+                        
+                        {/* Edit overlay for editing mode */}
+                        {isEditing && (
+                          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => setEditingLink({
+                                ...product,
+                                type: 'product' as const,
+                                icon: 'Link' as const,
+                                color: '#70d6ff'
+                              })}
+                              className="p-2 bg-blue-600 rounded-full hover:bg-blue-700 transition-colors"
+                            >
+                              <Pencil size={16} className="text-white" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Product Info */}
+                      <div className="p-4">
+                        <h3 className="font-semibold text-white text-sm mb-2 line-clamp-2 leading-tight">
+                          {product.title}
+                        </h3>
+                        <p className="text-xs text-gray-400 mb-3 line-clamp-2 leading-relaxed">
+                          {product.description}
+                        </p>
+                        {product.price && (
+                          <div className="text-sm font-bold text-green-400 mb-3">
+                            {product.price}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-blue-400 font-medium">View Product</span>
+                          <ExternalLink size={16} className="text-blue-400 group-hover:translate-x-1 transition-transform duration-200" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Category (Optional)</label>
-                  <input
-                    type="text"
-                    value={productForm.category}
-                    onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Electronics, Fashion, etc."
-                  />
-                </div>
-              </div>
-              
-              <div className="flex gap-3 mt-6">
+              )}
+
+              {isEditing && linkOrganizer.products.length > 0 && (
                 <button
-                  onClick={() => setShowAddProduct(false)}
-                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  onClick={() => setEditingLink({ id: '', title: '', description: '', price: '', image: '', url: '', category: '', isVisible: true, order: linkOrganizer.products.length, type: 'product', isNew: true } as LinkItem & { isNew: boolean })}
+                  className="w-full py-4 rounded-3xl bg-gray-800 text-blue-400 hover:bg-gray-700 transition-colors flex items-center justify-center space-x-2 font-semibold text-lg border-2 border-dashed border-gray-600"
                 >
-                  Cancel
+                  <Plus size={24} />
+                  <span>Add New Product</span>
                 </button>
-                <button
-                  onClick={handleAddProduct}
-                  className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  {editingProduct ? 'Update' : 'Add'} Product
-                </button>
-              </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
+      </main>
+
+      {/* Floating Edit Button */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button
+          onClick={() => setIsEditing(!isEditing)}
+          className={`
+            p-4 rounded-full text-white shadow-2xl transition-all duration-300
+            ${isEditing ? 'bg-red-600 hover:bg-red-700 rotate-90' : 'bg-blue-600 hover:bg-blue-700'}
+          `}
+          aria-label={isEditing ? 'Exit Edit Mode' : 'Enter Edit Mode'}
+        >
+          {isEditing ? <X size={24} /> : <Pencil size={24} />}
+        </button>
+      </div>
+
+      {/* Link Editor Modal */}
+      {editingLink && (
+        <LinkEditor
+          currentLink={editingLink}
+          onClose={() => setEditingLink(null)}
+          onSave={handleSaveLink}
+        />
       )}
     </div>
   );

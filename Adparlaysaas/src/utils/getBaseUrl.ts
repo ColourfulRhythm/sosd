@@ -5,7 +5,7 @@
 export const getBaseUrl = (): string => {
   // Check if we're in production
   if (process.env.NODE_ENV === 'production') {
-    return 'https://www.adparlay.com';
+    return 'https://adparlay.com';
   }
   
   // In development, use localhost
@@ -18,8 +18,8 @@ export const getBaseUrl = (): string => {
  */
 export const getShareUrl = (path: string): string => {
   const baseUrl = process.env.NODE_ENV === 'production' 
-    ? 'https://www.adparlay.com' 
-    : 'https://www.adparlay.com';
+    ? 'https://adparlay.com' 
+    : 'https://adparlay.com';
   
   return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 };
