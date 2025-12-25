@@ -6,10 +6,13 @@ If the site is not loading after deployment, check these settings in your Vercel
 
 ### Project Settings → General
 1. **Root Directory**: Leave empty (or set to project root if needed)
-2. **Framework Preset**: Should be "Next.js" (auto-detected)
+2. **Framework Preset**: Should be "Next.js" (you confirmed this is set)
 3. **Build Command**: Should be `npm run build` (or leave empty for auto-detection)
+   - **CRITICAL**: If build completes in 1 second, the build command is not running
+   - Try explicitly setting: `npm run build`
 4. **Output Directory**: Leave empty (Next.js handles this automatically)
 5. **Install Command**: Should be `npm install` (or leave empty for auto-detection)
+6. **Node.js Version**: Should be 18.x or higher (specified in package.json and .nvmrc)
 
 ### Project Settings → Git
 1. **Production Branch**: Should be `main`
