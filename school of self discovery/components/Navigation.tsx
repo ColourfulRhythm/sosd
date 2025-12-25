@@ -28,7 +28,7 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <a href="#">
+            <a href="/">
               <Image
                 src="/logo/8ae1ac18-1bc4-4eff-83db-32a88328cce3.JPG"
                 alt="School of Self-Discovery Logo"

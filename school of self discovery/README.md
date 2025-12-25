@@ -89,3 +89,4 @@ This project is ready to deploy on Vercel:
 
 © 2024 School of Self-Discovery. All rights reserved.
 
+
